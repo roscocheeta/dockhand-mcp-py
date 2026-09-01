@@ -32,11 +32,20 @@ The server exposes the following tools to the LLM agent:
 - **Write**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag)
 - **Lifecycle**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`
 
-### Images
-- `list_images`, `get_image_history`
-- `pull_image`, `tag_image`, `remove_image`
+### Stacks (Docker Compose)
+- `list_stacks`, `get_stack_compose`, `update_stack_compose`
+- `get_stack_env`, `get_stack_env_raw`, `update_stack_env_raw`
+- `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`
 
-*(Stacks, Volumes, and Networks are planned for future phases).*
+### Git Stacks
+- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`
+- `list_git_credentials`, `list_git_repositories`
+
+### Networks & Volumes
+- `list_networks`, `inspect_network`, `delete_network`
+- `list_volumes`, `inspect_volume`, `delete_volume`
+
+*(Auth, Users, and Registries are planned for future phases).*
 
 ## Prerequisites
 
