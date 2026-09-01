@@ -6,13 +6,25 @@ from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path
 
 
+def _compact_image(img: dict) -> dict:
+    """Keep only essential fields for token efficiency."""
+    return {
+        "Id": img.get("Id"),
+        "RepoTags": img.get("RepoTags", []),
+        "Size": img.get("Size"),
+        "Created": img.get("Created")
+    }
+
 def register_image_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def list_images(environment_id: int, ctx: Context) -> list:
         """List all Docker images in an environment."""
         client = ctx.request_context.lifespan_context["dockhand"]
-        return await client.get("/api/images", params={"env": environment_id})
+        images = await client.get("/api/images", params={"env": environment_id})
+        if isinstance(images, list):
+            return [_compact_image(i) for i in images]
+        return images
 
     @mcp.tool()
     async def get_image_history(environment_id: int, image_id: str, ctx: Context) -> list:

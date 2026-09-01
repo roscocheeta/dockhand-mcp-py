@@ -6,13 +6,27 @@ from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path
 
 
+def _compact_container(c: dict) -> dict:
+    """Keep only essential fields for token efficiency."""
+    return {
+        "Id": c.get("Id"),
+        "Name": c.get("Name") or c.get("Names", [""])[0] if c.get("Names") else "",
+        "Image": c.get("Image"),
+        "State": c.get("State"),
+        "Status": c.get("Status"),
+        "Ports": c.get("Ports", [])
+    }
+
 def register_container_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def list_containers(environment_id: int, ctx: Context) -> list:
         """List all containers in a Dockhand environment."""
         client = ctx.request_context.lifespan_context["dockhand"]
-        return await client.get("/api/containers", params={"env": environment_id})
+        containers = await client.get("/api/containers", params={"env": environment_id})
+        if isinstance(containers, list):
+            return [_compact_container(c) for c in containers]
+        return containers
 
     @mcp.tool()
     async def get_container(environment_id: int, container_id: str, ctx: Context) -> dict:
