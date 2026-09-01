@@ -68,7 +68,7 @@ uv run dockhand-mcp
 
 Configure your MCP client to execute this command with the appropriate environment variables.
 
-## Development
+## Development & Testing
 
 This project uses `uv` for dependency management.
 
@@ -79,6 +79,14 @@ uv sync --extra dev
 # Run the test suite
 uv run pytest
 ```
+
+### Testing Strategy
+
+The test suite is fully hermetic and runs offline—it does not require a live Dockhand instance. We achieve this using:
+- **`pytest`** & **`pytest-asyncio`**: For running asynchronous test cases.
+- **`respx`**: For intercepting and mocking `httpx` HTTP requests at the network level.
+
+If you are writing new tests (or having an AI write them), use the `mock_router` fixture (defined in `tests/conftest.py`). This fixture intercepts all requests matching the test base URL, allowing you to easily simulate Dockhand backend responses, 401 Unauthorized errors, or network latency without making real HTTP calls.
 
 ### Architecture
 
