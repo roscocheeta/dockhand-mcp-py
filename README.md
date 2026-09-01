@@ -57,6 +57,26 @@ Add the following to your `claude_desktop_config.json` (usually located at `%APP
 ```
 *(Note: adjust the `--from` path to wherever you publish this repository, or point to a local directory using `--from /path/to/repo`).*
 
+### Using with VSCode / VSCodium (Cline, Roo-Code, etc.)
+
+If you are using an AI coding assistant inside VSCode (such as Cline or Roo-Code), you can add the server to your MCP settings file (usually accessed via the extension's MCP menu, which maps to `mcp_settings.json` or `cline_mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "dockhand": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
+      "env": {
+        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
+        "DOCKHAND_USERNAME": "your-username",
+        "DOCKHAND_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
 ### Using with Cursor / Antigravity
 
 For local development or usage, you can run the server directly via `uv`:
