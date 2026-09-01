@@ -6,14 +6,35 @@ Written in Python using the `mcp` SDK and FastMCP.
 
 ## Features
 
-This server currently implements the core functionality required to manage Dockhand environments:
+- **Transparent Auth**: Handles Dockhand authentication, tracking the ~24h session expiry, and uses an `asyncio.Lock` to prevent concurrent 401 retry floods.
+- **Protocol Safe**: Explicitly routes all Python logging to `sys.stderr` to prevent JSON-RPC transport corruption.
+- **Secure**: Automatically strips sensitive internal credentials (`hawserToken`, `tlsKey`) from API responses before passing them to the LLM context.
 
-- **Auth**: Transparently handles Dockhand authentication, session expiry, and concurrent 401 retry guards.
-- **System**: Fetch Dockhand server info, host stats, and changelogs.
-- **Environments**: List, inspect, create, update, delete, and test Docker environments. Safely strips internal credentials (`hawserToken`, `tlsKey`) from responses.
-- **Containers (Read)**: List containers, get stats, fetch logs (tail), read file contents, and run top.
-- **Containers (Write)**: Lifecycle controls (start, stop, restart, pause, delete) and configuration (create, update, rename).
-- **Images**: List, pull, tag, remove, and view image history.
+## Available Tools
+
+The server exposes the following tools to the LLM agent:
+
+### System & Health
+- `health_check`: Check connectivity to the Dockhand instance.
+- `get_server_info`: Fetch Dockhand system/version information.
+- `get_host_info`: Fetch OS and host hardware information.
+- `get_changelog`: Get the Dockhand release changelog.
+
+### Environments
+- `list_environments`: List all Docker hosts managed by Dockhand.
+- `get_environment`: Get details for a specific environment (automatically strips `tlsKey` and `hawserToken` for security).
+- `create_environment`, `update_environment`, `delete_environment`: Manage environment configurations.
+- `test_environment`: Validate connectivity to an environment.
+
+### Containers
+- **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`
+- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`
+- **Write**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag)
+- **Lifecycle**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`
+
+### Images
+- `list_images`, `get_image_history`
+- `pull_image`, `tag_image`, `remove_image`
 
 *(Stacks, Volumes, and Networks are planned for future phases).*
 
