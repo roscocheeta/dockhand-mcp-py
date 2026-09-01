@@ -2,14 +2,16 @@
 Container management tools (Read-only for Phase 2b).
 """
 
+import json
+from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect
 
 
 def _compact_container(c: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Id": c.get("Id"),
+        "Id": truncate_id(c.get("Id")),
         "Name": c.get("Name") or c.get("Names", [""])[0] if c.get("Names") else "",
         "Image": c.get("Image"),
         "State": c.get("State"),
@@ -30,12 +32,13 @@ def register_container_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def get_container(environment_id: int, container_id: str, ctx: Context) -> dict:
-        """Get details for a specific container."""
+        """Get detailed inspection data for a specific container."""
         client = ctx.request_context.lifespan_context["dockhand"]
-        return await client.get(
+        data = await client.get(
             f"/api/containers/{encode_path(container_id)}",
             params={"env": environment_id},
         )
+        return clean_container_inspect(data)
 
     @mcp.tool()
     async def inspect_container(environment_id: int, container_id: str, ctx: Context) -> dict:

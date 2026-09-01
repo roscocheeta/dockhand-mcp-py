@@ -3,13 +3,13 @@ Image management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, truncate_id, strip_nulls
 
 
 def _compact_image(img: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Id": img.get("Id"),
+        "Id": truncate_id(img.get("Id")),
         "RepoTags": img.get("RepoTags", []),
         "Size": img.get("Size"),
         "Created": img.get("Created")
@@ -28,12 +28,13 @@ def register_image_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def get_image_history(environment_id: int, image_id: str, ctx: Context) -> list:
-        """Get the history of an image."""
+        """Get history for an image."""
         client = ctx.request_context.lifespan_context["dockhand"]
-        return await client.get(
+        data = await client.get(
             f"/api/images/{encode_path(image_id)}/history", 
             params={"env": environment_id}
         )
+        return strip_nulls(data)
 
     @mcp.tool()
     async def remove_image(environment_id: int, image_id: str, ctx: Context) -> dict:
