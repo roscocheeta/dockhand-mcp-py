@@ -77,16 +77,35 @@ If you are using an AI coding assistant inside VSCode (such as Cline or Roo-Code
 }
 ```
 
-### Using with Cursor / Antigravity
+### Using with Antigravity (CLI or Desktop)
 
-For local development or usage, you can run the server directly via `uv`:
+Whether you are using the Antigravity Desktop app or running the `agy` CLI in a terminal (like VSCodium), the MCP configuration uses the exact same schema. 
 
-```bash
-# In the project directory
-uv run dockhand-mcp
+You can configure it globally or per-workspace by adding the following JSON to an `mcp_config.json` file:
+
+**Global Location (Applies everywhere):**
+`~/.gemini/config/mcp_config.json`
+
+**Workspace Location (Applies only to a specific project):**
+`.agents/mcp_config.json` (Create this file at the root of your project)
+
+```json
+{
+  "mcpServers": {
+    "dockhand": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
+      "env": {
+        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
+        "DOCKHAND_USERNAME": "your-username",
+        "DOCKHAND_PASSWORD": "your-password"
+      }
+    }
+  }
+}
 ```
 
-Configure your MCP client to execute this command with the appropriate environment variables.
+### Local Development Usage
 
 ## Development & Testing
 
