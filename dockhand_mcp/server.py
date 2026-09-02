@@ -29,11 +29,12 @@ logger = logging.getLogger("dockhand_mcp")
 
 # ── Configuration ────────────────────────────────────────────────────────
 
-def _get_config() -> dict[str, str]:
+def _get_config() -> dict[str, Any]:
     """Read required configuration from environment variables."""
     url = os.environ.get("DOCKHAND_URL", "")
     username = os.environ.get("DOCKHAND_USERNAME", "")
     password = os.environ.get("DOCKHAND_PASSWORD", "")
+    verify_ssl = os.environ.get("DOCKHAND_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
 
     missing = []
     if not url:
@@ -49,7 +50,7 @@ def _get_config() -> dict[str, str]:
         )
         sys.exit(1)
 
-    return {"url": url, "username": username, "password": password}
+    return {"url": url, "username": username, "password": password, "verify_ssl": verify_ssl}
 
 
 # ── Lifespan — client lifecycle management ───────────────────────────────
@@ -68,8 +69,9 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         base_url=config["url"],
         username=config["username"],
         password=config["password"],
+        verify_ssl=config["verify_ssl"],
     )
-    logger.info("Dockhand MCP server starting — target: %s", config["url"])
+    logger.info("Dockhand MCP server starting — target: %s (SSL verify: %s)", config["url"], config["verify_ssl"])
     try:
         yield {"dockhand": client}
     finally:

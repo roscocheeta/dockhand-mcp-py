@@ -136,13 +136,14 @@ class DockhandClient:
     - Proper async lifecycle (close / context manager)
     """
 
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(self, base_url: str, username: str, password: str, verify_ssl: bool = True):
         self._base_url = base_url.rstrip("/")
         self._auth = DockhandAuth(self._base_url, username, password)
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=httpx.Timeout(30.0, connect=10.0),
             follow_redirects=False,
+            verify=verify_ssl,
         )
 
     async def close(self) -> None:

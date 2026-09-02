@@ -46,15 +46,13 @@ async def list_git_credentials(ctx: Context) -> list:
     client = ctx.request_context.lifespan_context["dockhand"]
     creds = await client.get("/api/git/credentials")
     
-    # Token efficiency and credential stripping
+    # Security: mask credentials regardless of key casing
+    _secret_keys = ("password", "token", "sshkey", "sshKey", "Password", "Token", "SshKey")
     if isinstance(creds, list):
         for c in creds:
-            if "password" in c:
-                c["password"] = "***"
-            if "token" in c:
-                c["token"] = "***"
-            if "sshKey" in c:
-                c["sshKey"] = "***"
+            for key in _secret_keys:
+                if key in c:
+                    c[key] = "***"
     return creds
 
 async def list_git_repositories(ctx: Context) -> list:

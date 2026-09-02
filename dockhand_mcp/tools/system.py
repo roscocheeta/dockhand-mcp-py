@@ -25,10 +25,15 @@ async def health_check(ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.health_check()
 
-async def get_changelog(ctx: Context) -> str:
-    """Get the Dockhand version changelog."""
+async def get_changelog(ctx: Context, max_lines: int = 50) -> str:
+    """Get the Dockhand version changelog. Truncated to max_lines (default 50) to save tokens."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/changelog")
+    content = await client.get("/api/changelog")
+    if isinstance(content, str):
+        lines = content.splitlines()
+        if len(lines) > max_lines:
+            return "\n".join(lines[:max_lines]) + f"\n\n[...truncated at {max_lines} lines. Use max_lines parameter to see more.]"
+    return content
 
 def register_system_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_server_info)

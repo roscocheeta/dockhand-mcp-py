@@ -49,8 +49,40 @@ def filter_labels(labels: dict | None) -> dict | None:
         if not k.startswith(prefixes_to_strip)
     }
 
+
+# Patterns that indicate a secret value in environment variable keys
+_SECRET_KEY_PATTERNS = (
+    "PASSWORD", "SECRET", "TOKEN", "KEY", "API_KEY", "APIKEY",
+    "PRIVATE", "CREDENTIAL", "AUTH", "PASS", "PWD",
+)
+
+
+def redact_env_secrets(env_list: list | None) -> list | None:
+    """
+    Redact values of environment variables whose keys match secret patterns.
+    
+    Docker stores env vars as ["KEY=VALUE", ...] strings.
+    Returns the list with sensitive values replaced by "***REDACTED***".
+    """
+    if not env_list or not isinstance(env_list, list):
+        return env_list
+    
+    redacted = []
+    for entry in env_list:
+        if not isinstance(entry, str) or "=" not in entry:
+            redacted.append(entry)
+            continue
+        key, _, value = entry.partition("=")
+        key_upper = key.upper()
+        if any(pattern in key_upper for pattern in _SECRET_KEY_PATTERNS):
+            redacted.append(f"{key}=***REDACTED***")
+        else:
+            redacted.append(entry)
+    return redacted
+
+
 def clean_container_inspect(c: dict) -> dict:
-    """Deeply clean a container inspect payload for get_container."""
+    """Deeply clean a container inspect payload for get_container and inspect_container."""
     c = strip_nulls(c)
     if isinstance(c, dict):
         if "Id" in c:
@@ -64,8 +96,14 @@ def clean_container_inspect(c: dict) -> dict:
             c["image"] = truncate_id(c["image"])
             
         # Clean labels in Config
-        if "Config" in c and isinstance(c["Config"], dict) and "Labels" in c["Config"]:
-            c["Config"]["Labels"] = filter_labels(c["Config"]["Labels"])
-        elif "config" in c and isinstance(c["config"], dict) and "labels" in c["config"]:
-            c["config"]["labels"] = filter_labels(c["config"]["labels"])
+        if "Config" in c and isinstance(c["Config"], dict):
+            if "Labels" in c["Config"]:
+                c["Config"]["Labels"] = filter_labels(c["Config"]["Labels"])
+            if "Env" in c["Config"]:
+                c["Config"]["Env"] = redact_env_secrets(c["Config"]["Env"])
+        elif "config" in c and isinstance(c["config"], dict):
+            if "labels" in c["config"]:
+                c["config"]["labels"] = filter_labels(c["config"]["labels"])
+            if "env" in c["config"]:
+                c["config"]["env"] = redact_env_secrets(c["config"]["env"])
     return c

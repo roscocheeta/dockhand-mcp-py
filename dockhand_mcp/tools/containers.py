@@ -38,12 +38,13 @@ async def get_container(environment_id: int, container_id: str, ctx: Context) ->
     return clean_container_inspect(data)
 
 async def inspect_container(environment_id: int, container_id: str, ctx: Context) -> dict:
-    """Get low-level docker inspect information for a container."""
+    """Get low-level docker inspect information for a container. Secrets in environment variables are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/containers/{encode_path(container_id)}/inspect",
         params={"env": environment_id},
     )
+    return clean_container_inspect(data)
 
 async def get_container_logs(
     environment_id: int,
@@ -98,16 +99,22 @@ async def get_container_file_content(
     container_id: str,
     path: str,
     ctx: Context,
+    max_bytes: int = 10240,
 ) -> str:
     """
     Read the text content of a file inside a container.
     path: Absolute path to the file inside the container.
+    max_bytes: Maximum bytes to return (default 10KB). Content beyond this is truncated.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    content = await client.get(
         f"/api/containers/{encode_path(container_id)}/files/content",
         params={"env": environment_id, "path": path},
     )
+    if isinstance(content, str) and len(content.encode("utf-8")) > max_bytes:
+        truncated = content.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+        return truncated + f"\n\n[...truncated at {max_bytes} bytes. Use max_bytes parameter to read more.]"
+    return content
 
 
 async def start_container(environment_id: int, container_id: str, ctx: Context) -> dict:
