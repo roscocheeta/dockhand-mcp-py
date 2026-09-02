@@ -16,6 +16,7 @@ from .registries import register_registry_tools
 from .users import register_user_tools
 from .audit import register_audit_tools
 from .dashboard import register_dashboard_tools
+from .misc import register_misc_tools
 
 
 def register_all_tools(mcp: FastMCP) -> None:
@@ -32,3 +33,4 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_user_tools(mcp)
     register_audit_tools(mcp)
     register_dashboard_tools(mcp)
+    register_misc_tools(mcp)

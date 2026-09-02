@@ -50,6 +50,11 @@ The server exposes the following tools to the LLM agent:
 - **Registries:** `list_registries`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
 - **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
 
+### Automation & Misc
+- **Schedules & Updates:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`
+- **Alerts & Scans:** `list_notifications`, `create_notification`, `scan_image`
+- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `list_config_sets`, `get_preferences`, `set_preferences`
+
 ## Prerequisites
 
 - Python 3.11+
