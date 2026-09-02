@@ -45,7 +45,10 @@ The server exposes the following tools to the LLM agent:
 - `list_networks`, `inspect_network`, `delete_network`
 - `list_volumes`, `inspect_volume`, `delete_volume`
 
-*(Auth, Users, and Registries are planned for future phases).*
+### Administration & Security
+- **Users/Auth:** `list_users`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`
+- **Registries:** `list_registries`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
+- **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
 
 ## Prerequisites
 

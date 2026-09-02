@@ -12,6 +12,10 @@ from .stacks import register_stack_tools
 from .git_stacks import register_git_stack_tools
 from .networks import register_network_tools
 from .volumes import register_volume_tools
+from .registries import register_registry_tools
+from .users import register_user_tools
+from .audit import register_audit_tools
+from .dashboard import register_dashboard_tools
 
 
 def register_all_tools(mcp: FastMCP) -> None:
@@ -24,3 +28,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_git_stack_tools(mcp)
     register_network_tools(mcp)
     register_volume_tools(mcp)
+    register_registry_tools(mcp)
+    register_user_tools(mcp)
+    register_audit_tools(mcp)
+    register_dashboard_tools(mcp)

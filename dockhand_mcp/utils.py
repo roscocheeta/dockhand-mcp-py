@@ -55,9 +55,17 @@ def clean_container_inspect(c: dict) -> dict:
     if isinstance(c, dict):
         if "Id" in c:
             c["Id"] = truncate_id(c["Id"])
+        elif "id" in c:
+            c["id"] = truncate_id(c["id"])
+            
         if "Image" in c and isinstance(c["Image"], str) and c["Image"].startswith("sha256:"):
             c["Image"] = truncate_id(c["Image"])
+        elif "image" in c and isinstance(c["image"], str) and c["image"].startswith("sha256:"):
+            c["image"] = truncate_id(c["image"])
+            
         # Clean labels in Config
         if "Config" in c and isinstance(c["Config"], dict) and "Labels" in c["Config"]:
             c["Config"]["Labels"] = filter_labels(c["Config"]["Labels"])
+        elif "config" in c and isinstance(c["config"], dict) and "labels" in c["config"]:
+            c["config"]["labels"] = filter_labels(c["config"]["labels"])
     return c

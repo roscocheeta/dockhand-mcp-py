@@ -9,10 +9,10 @@ from dockhand_mcp.utils import encode_path, truncate_id, strip_nulls
 def _compact_image(img: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Id": truncate_id(img.get("Id")),
-        "RepoTags": img.get("RepoTags", []),
-        "Size": img.get("Size"),
-        "Created": img.get("Created")
+        "Id": truncate_id(img.get("Id") or img.get("id")),
+        "RepoTags": img.get("RepoTags") or img.get("repoTags") or [],
+        "Size": img.get("Size") or img.get("size"),
+        "Created": img.get("Created") or img.get("created")
     }
 
 def register_image_tools(mcp: FastMCP) -> None:

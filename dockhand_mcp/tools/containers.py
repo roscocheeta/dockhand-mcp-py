@@ -11,12 +11,12 @@ from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect
 def _compact_container(c: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Id": truncate_id(c.get("Id")),
-        "Name": c.get("Name") or c.get("Names", [""])[0] if c.get("Names") else "",
-        "Image": c.get("Image"),
-        "State": c.get("State"),
-        "Status": c.get("Status"),
-        "Ports": c.get("Ports", [])
+        "Id": truncate_id(c.get("Id") or c.get("id")),
+        "Name": c.get("Name") or c.get("name") or (c.get("Names", [""])[0] if c.get("Names") else ""),
+        "Image": c.get("Image") or c.get("image"),
+        "State": c.get("State") or c.get("state"),
+        "Status": c.get("Status") or c.get("status"),
+        "Ports": c.get("Ports") or c.get("ports") or []
     }
 
 def register_container_tools(mcp: FastMCP) -> None:
