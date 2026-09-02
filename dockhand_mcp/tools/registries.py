@@ -28,24 +28,35 @@ async def list_registries(environment_id: int, ctx: Context) -> list:
     return registries
 
 async def create_registry(
-    environment_id: int, 
-    name: str, 
-    url: str, 
-    username: str, 
-    password: str, 
+    environment_id: int,
+    name: str,
+    registry_type: str,
+    url: str,
     ctx: Context,
-    registry_type: str = "custom"
+    username: str | None = None,
+    password: str | None = None,
 ) -> dict:
-    """Create a new Docker registry configuration."""
+    """
+    ⚠️ SECURITY WARNING: The password parameter is passed in plain text.
+    It will be visible in chat history and server logs. For production
+    credentials, please create the registry via the Dockhand web UI instead.
+    
+    Create a new container registry connection.
+    registry_type is typically 'dockerhub', 'ghcr', 'gitlab', 'ecr', or 'custom'.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "name": name,
+        "type": registry_type,
         "url": url,
-        "username": username,
-        "password": password,
-        "type": registry_type
     }
-    return await client.post("/api/registries", json=body, params={"env": environment_id})
+    if username:
+        body["username"] = username
+    if password:
+        body["password"] = password
+        
+    reg = await client.post("/api/registries", json=body, params={"env": environment_id})
+    return _compact_registry(reg)
 
 async def update_registry(
     environment_id: int, 
@@ -56,7 +67,13 @@ async def update_registry(
     username: str | None = None,
     password: str | None = None,
 ) -> dict:
-    """Update an existing Docker registry configuration."""
+    """
+    ⚠️ SECURITY WARNING: The password parameter is passed in plain text.
+    It will be visible in chat history and server logs. For production
+    credentials, please update the registry via the Dockhand web UI instead.
+    
+    Update an existing registry connection.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if name:

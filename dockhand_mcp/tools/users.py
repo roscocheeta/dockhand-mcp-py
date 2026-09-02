@@ -40,7 +40,13 @@ async def create_user(
     ctx: Context,
     role: str = "user"
 ) -> dict:
-    """Create a new user in Dockhand."""
+    """
+    SECURITY WARNING: The password parameter is passed in plain text.
+    It will be visible in chat history and server logs. For production
+    credentials, please create the user via the Dockhand web UI instead.
+    
+    Create a new user in Dockhand.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "username": username,
@@ -55,7 +61,13 @@ async def update_user(
     password: str | None = None,
     role: str | None = None
 ) -> dict:
-    """Update an existing user."""
+    """
+    SECURITY WARNING: The password parameter is passed in plain text.
+    It will be visible in chat history and server logs. For production
+    credentials, please update the user via the Dockhand web UI instead.
+    
+    Update an existing user.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if password:
@@ -79,7 +91,13 @@ async def list_tokens(ctx: Context) -> list:
     return tokens
 
 async def create_token(name: str, ctx: Context) -> dict:
-    """Create a new API token."""
+    """
+    SECURITY WARNING: The raw token value is returned in the response.
+    It will be visible in chat history. Please store it securely or
+    use the Dockhand web UI instead if creating a production token.
+    
+    Create a new API token.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post("/api/auth/tokens", json={"name": name})
 

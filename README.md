@@ -55,6 +55,17 @@ The server exposes the following tools to the LLM agent:
 - **Alerts & Scans:** `list_notifications`, `create_notification`, `scan_image`
 - **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `list_config_sets`, `get_preferences`, `set_preferences`
 
+## Security & Privacy Note
+
+This MCP server acts as a bridge between the AI model and your Dockhand instance. The AI model **must** be provided with the arguments required to execute tools. 
+
+> [!WARNING]
+> Tools such as `create_registry`, `create_user`, and `update_user` accept passwords as parameters. If you ask the AI to create a registry or user, it will need to know the password, which means the password will appear in your chat history and the server logs. 
+> 
+> **Best Practice:** Only use these tools for throwaway or development credentials. For production systems, you should create users and registries directly through the Dockhand web UI.
+
+To protect your data during read operations, the server automatically masks or strips known secrets (like passwords, SSH keys, API tokens, and sensitive environment variables) from API responses before passing them to the AI context.
+
 ## Prerequisites
 
 - Python 3.11+
@@ -68,6 +79,12 @@ The server requires three environment variables to connect to your Dockhand inst
 DOCKHAND_URL=http://your-dockhand-instance:3866
 DOCKHAND_USERNAME=your-username
 DOCKHAND_PASSWORD=your-password
+```
+
+Optional configuration:
+```env
+# Set to 'false' if your homelab uses self-signed certificates
+DOCKHAND_VERIFY_SSL=true
 ```
 
 > **Security Note:** It is highly recommended to create a dedicated Service Account in Dockhand for this MCP server, rather than using your personal admin credentials.
