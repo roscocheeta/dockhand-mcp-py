@@ -1,0 +1,62 @@
+name: Check Upstream Releases
+
+on:
+  schedule:
+    # Run at 10:00 AM UTC every day
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Fetch latest release from Finsys/dockhand
+        id: fetch_release
+        run: |
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/Finsys/dockhand/releases/latest | jq -r .tag_name)
+          if [ "$LATEST_RELEASE" == "null" ] || [ -z "$LATEST_RELEASE" ]; then
+            echo "Failed to fetch release."
+            exit 1
+          fi
+          echo "tag=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+          
+          # Fetch the release body/notes
+          RELEASE_BODY=$(curl -s https://api.github.com/repos/Finsys/dockhand/releases/latest | jq -r .body)
+          # We need to escape newlines for GitHub Actions output
+          RELEASE_BODY="${RELEASE_BODY//'%'/'%25'}"
+          RELEASE_BODY="${RELEASE_BODY//$'\n'/'%0A'}"
+          RELEASE_BODY="${RELEASE_BODY//$'\r'/'%0D'}"
+          echo "body=$RELEASE_BODY" >> $GITHUB_OUTPUT
+
+      - name: Check if Issue already exists
+        id: check_issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.fetch_release.outputs.tag }}"
+          # Search for open issues in our repo with the specific tag name in the title
+          ISSUE_COUNT=$(gh issue list --state all --search "$TAG in:title" --json number -q 'length')
+          echo "count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create Issue for new release
+        if: steps.check_issue.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.fetch_release.outputs.tag }}
+          BODY: ${{ steps.fetch_release.outputs.body }}
+        run: |
+          gh issue create \
+            --title "Upstream Release: Dockhand $TAG" \
+            --body "A new version of Dockhand (**$TAG**) has been released upstream.
+            
+            We should review the changelog to see if there are any API changes that need to be reflected in the MCP server.
+            
+            ### Release Notes
+            $BODY
+            
+            [View on GitHub](https://github.com/Finsys/dockhand/releases/tag/$TAG)" \
+            --label "enhancement"
