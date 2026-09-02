@@ -1,6 +1,6 @@
 [project]
 name = "dockhand-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python MCP Server for Dockhand Docker Management API"
 readme = "README.md"
 license = {text = "MIT"}
