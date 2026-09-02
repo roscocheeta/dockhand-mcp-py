@@ -137,7 +137,7 @@ async def down_stack(
     ctx: Context,
     remove_volumes: bool = False
 ) -> dict:
-    """Tear down a stack (Docker Compose down)."""
+    """⚠️ DESTRUCTIVE: Tear down a stack (Docker Compose down). If remove_volumes is True, all data is lost."""
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"removeVolumes": remove_volumes} if remove_volumes else None
     return await client.post_sse(
@@ -153,7 +153,7 @@ async def delete_stack(
     force: bool = False,
     files: bool = True
 ) -> dict:
-    """Delete a stack and optionally its files from disk."""
+    """⚠️ DESTRUCTIVE: Delete a stack and optionally its files from disk. Permanent deletion."""
     client = ctx.request_context.lifespan_context["dockhand"]
     params = {"env": environment_id}
     if force:

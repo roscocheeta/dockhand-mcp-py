@@ -3,16 +3,16 @@ Network management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, strip_nulls, truncate_id
 
 
 def _compact_network(n: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Id": n.get("Id"),
-        "Name": n.get("Name"),
-        "Driver": n.get("Driver"),
-        "Scope": n.get("Scope")
+        "Id": truncate_id(n.get("Id") or n.get("id")),
+        "Name": n.get("Name") or n.get("name"),
+        "Driver": n.get("Driver") or n.get("driver"),
+        "Scope": n.get("Scope") or n.get("scope")
     }
 
 
@@ -27,13 +27,14 @@ async def list_networks(environment_id: int, ctx: Context) -> list:
 async def inspect_network(environment_id: int, network_id: str, ctx: Context) -> dict:
     """Inspect a specific Docker network."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/networks/{encode_path(network_id)}", 
         params={"env": environment_id}
     )
+    return strip_nulls(data)
 
 async def delete_network(environment_id: int, network_id: str, ctx: Context) -> dict:
-    """Delete a Docker network."""
+    """⚠️ DESTRUCTIVE: Delete a Docker network. Connected containers will lose connectivity."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/networks/{encode_path(network_id)}", 

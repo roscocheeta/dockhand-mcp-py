@@ -79,7 +79,7 @@ async def update_environment(
     return _strip_environment_credentials(env)
 
 async def delete_environment(environment_id: int, ctx: Context) -> dict:
-    """Delete an environment from Dockhand."""
+    """⚠️ DESTRUCTIVE: Delete an environment from Dockhand. (Does not delete the actual host)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/environments/{encode_path(str(environment_id))}")
 

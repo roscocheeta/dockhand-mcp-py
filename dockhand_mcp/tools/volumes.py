@@ -3,15 +3,15 @@ Volume management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, strip_nulls
 
 
 def _compact_volume(v: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     return {
-        "Name": v.get("Name"),
-        "Driver": v.get("Driver"),
-        "Mountpoint": v.get("Mountpoint")
+        "Name": v.get("Name") or v.get("name"),
+        "Driver": v.get("Driver") or v.get("driver"),
+        "Mountpoint": v.get("Mountpoint") or v.get("mountpoint")
     }
 
 
@@ -33,13 +33,14 @@ async def list_volumes(environment_id: int, ctx: Context) -> list:
 async def inspect_volume(environment_id: int, volume_name: str, ctx: Context) -> dict:
     """Inspect a specific Docker volume."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/volumes/{encode_path(volume_name)}", 
         params={"env": environment_id}
     )
+    return strip_nulls(data)
 
 async def delete_volume(environment_id: int, volume_name: str, ctx: Context) -> dict:
-    """Delete a Docker volume."""
+    """⚠️ DESTRUCTIVE: Delete a Docker volume. All data stored in this volume will be permanently lost."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/volumes/{encode_path(volume_name)}", 

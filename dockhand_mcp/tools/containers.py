@@ -54,8 +54,9 @@ async def get_container_logs(
 ) -> str:
     """
     Get stdout/stderr logs from a container.
-    tail: Number of lines to return from the end of the logs (default: 100)
+    tail: Number of lines from the end (default 100, max 500).
     """
+    tail = min(tail, 500)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/containers/{encode_path(container_id)}/logs",
@@ -143,7 +144,7 @@ async def unpause_container(environment_id: int, container_id: str, ctx: Context
     return await client.post(f"/api/containers/{encode_path(container_id)}/unpause", params={"env": environment_id})
 
 async def delete_container(environment_id: int, container_id: str, ctx: Context, force: bool = False) -> dict:
-    """Delete a container (optionally force-kill it first)."""
+    """⚠️ DESTRUCTIVE: Delete a container (optionally force-kill it first). Permanent unless re-created."""
     client = ctx.request_context.lifespan_context["dockhand"]
     params = {"env": environment_id}
     if force:

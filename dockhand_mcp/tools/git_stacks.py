@@ -3,7 +3,7 @@ Git Stack management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, strip_nulls
 
 
 def _compact_git_stack(s: dict) -> dict:
@@ -29,7 +29,8 @@ async def list_git_stacks(ctx: Context) -> list:
 async def get_git_stack(stack_id: int, ctx: Context) -> dict:
     """Get details for a specific Git stack."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/git/stacks/{encode_path(str(stack_id))}")
+    data = await client.get(f"/api/git/stacks/{encode_path(str(stack_id))}")
+    return strip_nulls(data)
 
 async def deploy_git_stack(stack_id: int, ctx: Context) -> dict:
     """Deploy a Git stack. Uses SSE streaming."""

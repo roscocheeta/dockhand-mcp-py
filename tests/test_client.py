@@ -148,3 +148,38 @@ class TestPathEncoding:
         result = encode_path("stack+name@v2")
         assert "+" not in result or "%2B" in result
         assert "@" not in result or "%40" in result
+
+
+class TestSSEParsing:
+    """Tests for Server-Sent Events parsing in _parse_sse_response."""
+
+    def test_parse_sse_success_with_output(self):
+        resp = httpx.Response(
+            200, 
+            text='data: {"output": "pulling image..."}\n\ndata: {"output": "done"}\n\ndata: {"success": true}\n',
+            headers={"Content-Type": "text/event-stream"}
+        )
+        result = DockhandClient._parse_sse_response(resp)
+        assert result["success"] is True
+        assert result["output"] == "pulling image...\ndone"
+
+    def test_parse_sse_error(self):
+        resp = httpx.Response(
+            200, 
+            text='data: {"output": "starting..."}\n\ndata: {"error": "port 80 already in use"}\n\ndata: {"success": false}\n',
+            headers={"Content-Type": "text/event-stream"}
+        )
+        result = DockhandClient._parse_sse_response(resp)
+        assert result["success"] is False
+        assert "port 80 already in use" in result["output"]
+
+    def test_parse_sse_invalid_json(self):
+        resp = httpx.Response(
+            200, 
+            text='data: plain text line 1\n\ndata: plain text line 2\n',
+            headers={"Content-Type": "text/event-stream"}
+        )
+        result = DockhandClient._parse_sse_response(resp)
+        assert result["success"] is True
+        assert "plain text line 1" in result["output"]
+        assert "plain text line 2" in result["output"]
