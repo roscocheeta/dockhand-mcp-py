@@ -1,5 +1,5 @@
 [project]
-name = "dockhand-mcp"
+name = "dockhand-mcp-py"
 version = "0.2.0"
 description = "Python MCP Server for Dockhand Docker Management API"
 readme = "README.md"
@@ -24,6 +24,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dockhand_mcp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

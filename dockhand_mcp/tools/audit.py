@@ -16,39 +16,40 @@ def _compact_audit(a: dict) -> dict:
         "EnvironmentId": a.get("EnvironmentId") or a.get("environmentId"),
     }
 
-def register_audit_tools(mcp: FastMCP) -> None:
 
-    @mcp.tool()
-    async def get_audit_log(
-        ctx: Context,
-        environment_id: int | None = None,
-        limit: int = 100,
-        offset: int = 0,
-        username: str | None = None,
-        action: str | None = None
-    ) -> list:
-        """Get the audit log of actions performed in Dockhand."""
-        client = ctx.request_context.lifespan_context["dockhand"]
-        params = {"limit": limit, "offset": offset}
-        if environment_id is not None:
-            params["env"] = environment_id
-        if username:
-            params["username"] = username
-        if action:
-            params["action"] = action
-            
-        logs = await client.get("/api/audit", params=params)
-        if isinstance(logs, list):
-            return [_compact_audit(l) for l in logs]
-        elif isinstance(logs, dict) and "data" in logs:
-            data = logs["data"]
-            if isinstance(data, list):
-                logs["data"] = [_compact_audit(l) for l in data]
-            return logs
+async def get_audit_log(
+    ctx: Context,
+    environment_id: int | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    username: str | None = None,
+    action: str | None = None
+) -> list:
+    """Get the audit log of actions performed in Dockhand."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    params = {"limit": limit, "offset": offset}
+    if environment_id is not None:
+        params["env"] = environment_id
+    if username:
+        params["username"] = username
+    if action:
+        params["action"] = action
+        
+    logs = await client.get("/api/audit", params=params)
+    if isinstance(logs, list):
+        return [_compact_audit(l) for l in logs]
+    elif isinstance(logs, dict) and "data" in logs:
+        data = logs["data"]
+        if isinstance(data, list):
+            logs["data"] = [_compact_audit(l) for l in data]
         return logs
+    return logs
 
-    @mcp.tool()
-    async def get_audit_users(ctx: Context) -> list:
-        """Get a list of users who have generated audit events."""
-        client = ctx.request_context.lifespan_context["dockhand"]
-        return await client.get("/api/audit/users")
+async def get_audit_users(ctx: Context) -> list:
+    """Get a list of users who have generated audit events."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/audit/users")
+
+def register_audit_tools(mcp: FastMCP) -> None:
+    mcp.add_tool(get_audit_log)
+    mcp.add_tool(get_audit_users)
