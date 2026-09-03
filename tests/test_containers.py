@@ -59,3 +59,25 @@ async def test_start_container(mock_client, mock_ctx):
         
         assert route.called
         assert result is None or result == "" # 204 no content
+
+@pytest.mark.asyncio
+async def test_write_container_file_content(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import write_container_file_content
+    with respx.mock:
+        route = respx.put("http://dockhand.test/api/containers/my-container/files/content?env=1&path=/tmp/test.txt").mock(
+            return_value=Response(200, json={"success": True})
+        )
+        result = await write_container_file_content(1, "my-container", "/tmp/test.txt", "hello", mock_ctx)
+        assert route.called
+        assert result["success"] is True
+
+@pytest.mark.asyncio
+async def test_delete_container_file(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import delete_container_file
+    with respx.mock:
+        route = respx.delete("http://dockhand.test/api/containers/my-container/files?env=1&path=/tmp/test.txt").mock(
+            return_value=Response(204)
+        )
+        result = await delete_container_file(1, "my-container", "/tmp/test.txt", mock_ctx)
+        assert route.called
+

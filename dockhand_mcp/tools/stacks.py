@@ -221,6 +221,96 @@ async def delete_stack(
         params=params
     )
 
+async def update_stack_env(
+    environment_id: int,
+    name: str,
+    env_vars: list[dict[str, Any]],
+    ctx: Context,
+) -> dict:
+    """Update stack environment variables with structured merge/replace."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.put(
+        f"/api/stacks/{encode_path(name)}/env",
+        json={"envVars": env_vars},
+        params={"env": environment_id}
+    )
+
+async def remove_stack_env_vars(
+    environment_id: int,
+    name: str,
+    keys: list[str],
+    ctx: Context,
+) -> dict:
+    """Selectively remove environment variables from a stack's .env or DB."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.delete(
+        f"/api/stacks/{encode_path(name)}/env",
+        json={"keys": keys},
+        params={"env": environment_id}
+    )
+
+async def check_stack_env_collisions(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+) -> dict:
+    """Check for environment variable collisions."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/stacks/{encode_path(name)}/env/collisions",
+        params={"env": environment_id}
+    )
+
+async def validate_stack_env(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+) -> dict:
+    """Validate a stack's environment configuration."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/stacks/{encode_path(name)}/env/validate",
+        params={"env": environment_id}
+    )
+
+async def get_stack_delete_preview(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+) -> dict:
+    """Get a preview of what will be deleted when removing a stack."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/stacks/{encode_path(name)}/delete/preview",
+        params={"env": environment_id}
+    )
+
+async def adopt_stack(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+) -> dict:
+    """Adopt an existing unmanaged stack into Dockhand."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/stacks/{encode_path(name)}/adopt",
+        params={"env": environment_id}
+    )
+
+async def relocate_stack(
+    environment_id: int,
+    name: str,
+    new_path: str,
+    ctx: Context,
+) -> dict:
+    """Relocate a stack to a new path on the host."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/stacks/{encode_path(name)}/relocate",
+        json={"newPath": new_path},
+        params={"env": environment_id}
+    )
+
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
     mcp.add_tool(create_stack)
@@ -228,7 +318,14 @@ def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(update_stack_compose)
     mcp.add_tool(get_stack_env)
     mcp.add_tool(get_stack_env_raw)
+    mcp.add_tool(update_stack_env)
     mcp.add_tool(update_stack_env_raw)
+    mcp.add_tool(remove_stack_env_vars)
+    mcp.add_tool(check_stack_env_collisions)
+    mcp.add_tool(validate_stack_env)
+    mcp.add_tool(get_stack_delete_preview)
+    mcp.add_tool(adopt_stack)
+    mcp.add_tool(relocate_stack)
     mcp.add_tool(deploy_stack)
     mcp.add_tool(start_stack)
     mcp.add_tool(stop_stack)

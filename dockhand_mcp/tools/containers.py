@@ -220,6 +220,64 @@ async def update_container(
         params={"env": environment_id}
     )
 
+async def write_container_file_content(
+    environment_id: int,
+    container_id: str,
+    path: str,
+    content: str,
+    ctx: Context,
+) -> dict:
+    """Write text content to a file inside a container."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.put(
+        f"/api/containers/{encode_path(container_id)}/files/content",
+        json={"content": content},
+        params={"env": environment_id, "path": path},
+    )
+
+async def upload_container_file(
+    environment_id: int,
+    container_id: str,
+    path: str,
+    base64_content: str,
+    ctx: Context,
+) -> dict:
+    """Upload a file to a container using base64 encoded content."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/files/upload",
+        json={"content": base64_content},
+        params={"env": environment_id, "path": path},
+    )
+
+async def delete_container_file(
+    environment_id: int,
+    container_id: str,
+    path: str,
+    ctx: Context,
+) -> dict:
+    """Delete a file or directory inside a container."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.delete(
+        f"/api/containers/{encode_path(container_id)}/files",
+        params={"env": environment_id, "path": path},
+    )
+
+async def rename_container_file(
+    environment_id: int,
+    container_id: str,
+    old_path: str,
+    new_path: str,
+    ctx: Context,
+) -> dict:
+    """Rename a file or directory inside a container."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/files/rename",
+        json={"oldPath": old_path, "newPath": new_path},
+        params={"env": environment_id},
+    )
+
 def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_containers)
     mcp.add_tool(get_container)
@@ -229,6 +287,10 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_container_top)
     mcp.add_tool(list_container_files)
     mcp.add_tool(get_container_file_content)
+    mcp.add_tool(write_container_file_content)
+    mcp.add_tool(upload_container_file)
+    mcp.add_tool(delete_container_file)
+    mcp.add_tool(rename_container_file)
     mcp.add_tool(start_container)
     mcp.add_tool(stop_container)
     mcp.add_tool(restart_container)

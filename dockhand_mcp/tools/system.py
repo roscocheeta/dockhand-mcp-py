@@ -35,8 +35,39 @@ async def get_changelog(ctx: Context, max_lines: int = 50) -> str:
             return "\n".join(lines[:max_lines]) + f"\n\n[...truncated at {max_lines} lines. Use max_lines parameter to see more.]"
     return content
 
+async def prune_all(environment_id: int, ctx: Context) -> dict:
+    """Prune all unused Docker resources (containers, networks, images, volumes)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/system/prune/all", params={"env": environment_id})
+
+async def prune_containers(environment_id: int, ctx: Context) -> dict:
+    """Prune unused Docker containers."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/system/prune/containers", params={"env": environment_id})
+
+async def prune_images(environment_id: int, ctx: Context) -> dict:
+    """Prune unused Docker images."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/system/prune/images", params={"env": environment_id})
+
+async def prune_networks(environment_id: int, ctx: Context) -> dict:
+    """Prune unused Docker networks."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/system/prune/networks", params={"env": environment_id})
+
+async def prune_volumes(environment_id: int, ctx: Context) -> dict:
+    """Prune unused Docker volumes."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/system/prune/volumes", params={"env": environment_id})
+
+
 def register_system_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_server_info)
     mcp.add_tool(get_host_info)
     mcp.add_tool(health_check)
     mcp.add_tool(get_changelog)
+    mcp.add_tool(prune_all)
+    mcp.add_tool(prune_containers)
+    mcp.add_tool(prune_images)
+    mcp.add_tool(prune_networks)
+    mcp.add_tool(prune_volumes)
