@@ -74,12 +74,14 @@ async def create_stack(
         body["rawEnvContent"] = raw_env_content
     if secret_provider_id is not None:
         body["secretProviderId"] = secret_provider_id
+    params: dict[str, Any] = {"env": environment_id}
     if repository_id is not None:
         body["repositoryId"] = repository_id
+        params["method"] = "repository"
     if branch is not None:
         body["branch"] = branch
 
-    return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
+    return await client.post_sse("/api/stacks", json=body, params=params)
 
 async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dict:
     """Get the docker-compose.yml content for a stack."""

@@ -106,7 +106,7 @@ async def test_create_stack_git_params(mock_client, mock_ctx):
     sse_response_text = 'data: {"success": true}\n'
 
     with respx.mock:
-        route = respx.post("http://dockhand.test/api/stacks?env=3").mock(
+        route = respx.post("http://dockhand.test/api/stacks?env=3&method=repository").mock(
             return_value=Response(
                 200,
                 text=sse_response_text,
