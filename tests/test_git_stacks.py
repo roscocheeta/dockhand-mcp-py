@@ -1,7 +1,7 @@
 import pytest
 import respx
 from httpx import Response
-from dockhand_mcp.tools.git_stacks import list_git_credentials
+from dockhand_mcp.tools.git_credentials import list_git_credentials
 
 class MockContext:
     def __init__(self, client):

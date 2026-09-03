@@ -42,41 +42,40 @@ async def sync_git_stack(stack_id: int, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/git/stacks/{encode_path(str(stack_id))}/sync")
 
-async def list_git_credentials(ctx: Context) -> list:
-    """List Git credentials (passwords stripped for security)."""
+async def create_git_stack(environment_id: int, name: str, repository_id: int, branch: str, compose_path: str, ctx: Context, env_vars: list | None = None) -> dict:
+    """Create a Git stack."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    creds = await client.get("/api/git/credentials")
-    
-    # Security: mask credentials regardless of key casing
-    _secret_keys = ("password", "token", "sshkey", "sshKey", "Password", "Token", "SshKey")
-    if isinstance(creds, list):
-        for c in creds:
-            for key in _secret_keys:
-                if key in c:
-                    c[key] = "***"
-    return creds
+    body = {
+        "name": name,
+        "repositoryId": repository_id,
+        "branch": branch,
+        "composePath": compose_path
+    }
+    if env_vars:
+        body["envVars"] = env_vars
+    return await client.post("/api/git/stacks", json=body, params={"env": environment_id})
 
-async def list_git_repositories(ctx: Context) -> list:
-    """List Git repositories."""
+async def update_git_stack(stack_id: int, ctx: Context, branch: str | None = None, compose_path: str | None = None, env_vars: list | None = None) -> dict:
+    """Update a Git stack."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    repos = await client.get("/api/git/repositories")
-    # Token efficiency
-    if isinstance(repos, list):
-        return [
-            {
-                "Id": r.get("id") or r.get("Id"),
-                "Name": r.get("name") or r.get("Name"),
-                "Url": r.get("url") or r.get("Url"),
-                "Branch": r.get("branch") or r.get("Branch"),
-            }
-            for r in repos
-        ]
-    return repos
+    body = {}
+    if branch is not None: body["branch"] = branch
+    if compose_path is not None: body["composePath"] = compose_path
+    if env_vars is not None: body["envVars"] = env_vars
+    return await client.put(f"/api/git/stacks/{encode_path(str(stack_id))}", json=body)
+
+async def delete_git_stack(stack_id: int, ctx: Context, force: bool = False) -> dict:
+    """Delete a Git stack."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    params = {}
+    if force: params["force"] = "true"
+    return await client.delete(f"/api/git/stacks/{encode_path(str(stack_id))}", params=params)
 
 def register_git_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_git_stacks)
     mcp.add_tool(get_git_stack)
     mcp.add_tool(deploy_git_stack)
     mcp.add_tool(sync_git_stack)
-    mcp.add_tool(list_git_credentials)
-    mcp.add_tool(list_git_repositories)
+    mcp.add_tool(create_git_stack)
+    mcp.add_tool(update_git_stack)
+    mcp.add_tool(delete_git_stack)

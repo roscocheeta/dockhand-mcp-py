@@ -33,10 +33,10 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
   - `adopt_stack`, `relocate_stack`
 
 ### Medium Priority Enhancements
-- [ ] **Vulnerability & Security Scanning:**
+- [x] **Vulnerability & Security Scanning:**
   - `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`
   - `list_image_scans`
-- [ ] **Git Repository & Credential Management:**
+- [x] **Git Repository & Credential Management:**
   - `create_git_stack`, `update_git_stack`, `delete_git_stack`
   - `create_git_credential`, `update_git_credential`, `delete_git_credential`
   - `create_git_repository`, `update_git_repository`, `delete_git_repository`
