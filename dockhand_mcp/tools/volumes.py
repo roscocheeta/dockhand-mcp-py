@@ -47,7 +47,17 @@ async def delete_volume(environment_id: int, volume_name: str, ctx: Context) -> 
         params={"env": environment_id}
     )
 
+async def get_volume(environment_id: int, volume_name: str, ctx: Context) -> dict:
+    """Get details for a specific Docker volume."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.get(
+        f"/api/volumes/{encode_path(volume_name)}", 
+        params={"env": environment_id}
+    )
+    return strip_nulls(data)
+
 def register_volume_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_volumes)
+    mcp.add_tool(get_volume)
     mcp.add_tool(inspect_volume)
     mcp.add_tool(delete_volume)

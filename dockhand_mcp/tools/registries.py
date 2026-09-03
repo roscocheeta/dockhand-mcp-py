@@ -107,8 +107,18 @@ async def test_registry(environment_id: int, registry_id: int, ctx: Context) -> 
         params={"env": environment_id}
     )
 
+async def get_registry(environment_id: int, registry_id: int, ctx: Context) -> dict:
+    """Get details for a specific Docker registry."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    reg = await client.get(
+        f"/api/registries/{encode_path(str(registry_id))}", 
+        params={"env": environment_id}
+    )
+    return _compact_registry(reg)
+
 def register_registry_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_registries)
+    mcp.add_tool(get_registry)
     mcp.add_tool(create_registry)
     mcp.add_tool(update_registry)
     mcp.add_tool(delete_registry)

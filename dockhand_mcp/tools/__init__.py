@@ -20,6 +20,7 @@ from .audit import register_audit_tools
 from .dashboard import register_dashboard_tools
 from .misc import register_misc_tools
 from .security import register_security_tools
+from .auth_providers import register_auth_provider_tools
 
 
 def register_all_tools(mcp: FastMCP) -> None:
@@ -40,3 +41,4 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_dashboard_tools(mcp)
     register_misc_tools(mcp)
     register_security_tools(mcp)
+    register_auth_provider_tools(mcp)

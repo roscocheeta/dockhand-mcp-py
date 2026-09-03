@@ -43,6 +43,6 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
   - `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`
 
 ### Low Priority / Granular Tools (Optional)
-- **Single Resource Getters:** `get_network`, `get_volume`, `get_registry`, `get_user`, `get_notification`, `get_secret_provider`
-- **Granular Settings/Preferences:** `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`
-- **SSO / Enterprise Auth:** `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
+- [x] **Single Resource Getters:** `get_network`, `get_volume`, `get_registry`, `get_user`, `get_notification`, `get_secret_provider`
+- [x] **Granular Settings/Preferences:** `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`
+- [x] **SSO / Enterprise Auth:** `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`

@@ -106,8 +106,15 @@ async def delete_token(token_id: int, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/auth/tokens/{encode_path(str(token_id))}")
 
+async def get_user(user_id: int, ctx: Context) -> dict:
+    """Get details for a specific user."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    user = await client.get(f"/api/users/{encode_path(str(user_id))}")
+    return _compact_user(user) if isinstance(user, dict) else user
+
 def register_user_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_users)
+    mcp.add_tool(get_user)
     mcp.add_tool(create_user)
     mcp.add_tool(update_user)
     mcp.add_tool(delete_user)

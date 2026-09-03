@@ -83,8 +83,39 @@ async def scan_image(environment_id: int, image_id: str, ctx: Context) -> dict:
         params={"env": environment_id}
     )
 
+async def get_notification(notification_id: int, ctx: Context) -> dict:
+    """Get details of a specific notification."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(f"/api/notifications/{encode_path(str(notification_id))}")
+
+async def get_secret_provider(provider_id: int, ctx: Context) -> dict:
+    """Get details of a specific secret provider."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(f"/api/secrets/providers/{encode_path(str(provider_id))}")
+
+async def get_theme_settings(ctx: Context) -> dict:
+    """Get UI theme settings."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/users/preferences/theme")
+
+async def update_theme_settings(theme: str, ctx: Context) -> dict:
+    """Update UI theme settings."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.put("/api/users/preferences/theme", json={"theme": theme})
+
+async def get_sidebar_preferences(ctx: Context) -> dict:
+    """Get sidebar preferences."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/users/preferences/sidebar")
+
+async def set_grid_preferences(grid: dict, ctx: Context) -> dict:
+    """Set UI grid layout preferences."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.put("/api/users/preferences/grid", json=grid)
+
 def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_notifications)
+    mcp.add_tool(get_notification)
     mcp.add_tool(create_notification)
     mcp.add_tool(list_schedules)
     mcp.add_tool(create_schedule)
@@ -92,7 +123,12 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_labels)
     mcp.add_tool(get_preferences)
     mcp.add_tool(set_preferences)
+    mcp.add_tool(get_theme_settings)
+    mcp.add_tool(update_theme_settings)
+    mcp.add_tool(get_sidebar_preferences)
+    mcp.add_tool(set_grid_preferences)
     mcp.add_tool(list_secret_providers)
+    mcp.add_tool(get_secret_provider)
     mcp.add_tool(list_config_sets)
     mcp.add_tool(get_auto_update)
     mcp.add_tool(set_auto_update)

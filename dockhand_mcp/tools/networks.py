@@ -41,7 +41,17 @@ async def delete_network(environment_id: int, network_id: str, ctx: Context) -> 
         params={"env": environment_id}
     )
 
+async def get_network(environment_id: int, network_id: str, ctx: Context) -> dict:
+    """Get details for a specific Docker network."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.get(
+        f"/api/networks/{encode_path(network_id)}", 
+        params={"env": environment_id}
+    )
+    return strip_nulls(data)
+
 def register_network_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_networks)
+    mcp.add_tool(get_network)
     mcp.add_tool(inspect_network)
     mcp.add_tool(delete_network)
