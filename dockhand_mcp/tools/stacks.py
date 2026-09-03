@@ -2,6 +2,7 @@
 Stack (Docker Compose) management tools.
 """
 
+from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path
 
@@ -24,6 +25,50 @@ async def list_stacks(environment_id: int, ctx: Context) -> list:
     if isinstance(stacks, list):
         return [_compact_stack(s) for s in stacks]
     return stacks
+
+async def create_stack(
+    environment_id: int,
+    name: str,
+    compose: str,
+    ctx: Context,
+    compose_path: str | None = None,
+    env_path: str | None = None,
+    start: bool = True,
+    env_vars: list[dict[str, Any]] | None = None,
+    raw_env_content: str | None = None,
+    secret_provider_id: int | None = None,
+) -> dict:
+    """Create a new Docker Compose stack.
+
+    Args:
+        environment_id: Environment ID where the stack will be created.
+        name: Name of the new stack.
+        compose: Docker Compose YAML file content as string.
+        compose_path: Optional explicit path on disk for the compose file.
+        env_path: Optional explicit path on disk for the .env file.
+        start: Start/deploy the stack immediately after creation (default: True).
+        env_vars: Optional environment variables list (dicts with 'key', 'value', and optional 'isSecret').
+        raw_env_content: Optional raw .env file content string.
+        secret_provider_id: Optional secret provider ID to bind to the stack.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body: dict[str, Any] = {
+        "name": name,
+        "compose": compose,
+        "start": start,
+    }
+    if compose_path is not None:
+        body["composePath"] = compose_path
+    if env_path is not None:
+        body["envPath"] = env_path
+    if env_vars is not None:
+        body["envVars"] = env_vars
+    if raw_env_content is not None:
+        body["rawEnvContent"] = raw_env_content
+    if secret_provider_id is not None:
+        body["secretProviderId"] = secret_provider_id
+
+    return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
 
 async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dict:
     """Get the docker-compose.yml content for a stack."""
@@ -167,6 +212,7 @@ async def delete_stack(
 
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
+    mcp.add_tool(create_stack)
     mcp.add_tool(get_stack_compose)
     mcp.add_tool(update_stack_compose)
     mcp.add_tool(get_stack_env)

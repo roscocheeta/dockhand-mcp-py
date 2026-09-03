@@ -228,12 +228,12 @@ class DockhandClient:
         current_version = self._auth.session_version
         
         # Dockhand deploy streams can take a long time, use a longer timeout (5 mins)
-        client = self._client.copy_with(timeout=httpx.Timeout(300.0, connect=10.0))
-        resp = await client.request(method, path, **kwargs)
+        kwargs["timeout"] = httpx.Timeout(300.0, connect=10.0)
+        resp = await self._client.request(method, path, **kwargs)
 
         if resp.status_code == 401:
             await self._auth.invalidate_and_retry(self._client, current_version)
-            resp = await client.request(method, path, **kwargs)
+            resp = await self._client.request(method, path, **kwargs)
 
         if resp.status_code >= 400:
             detail = resp.text[:1000] if resp.text else resp.reason_phrase

@@ -33,7 +33,7 @@ The server exposes the following tools to the LLM agent:
 - **Lifecycle**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`
 
 ### Stacks (Docker Compose)
-- `list_stacks`, `get_stack_compose`, `update_stack_compose`
+- `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`
 - `get_stack_env`, `get_stack_env_raw`, `update_stack_env_raw`
 - `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`
 
