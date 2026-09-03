@@ -21,11 +21,11 @@ This document tracks planned enhancements, future phases, and outstanding techni
 An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js implementation (`scratch/mcp-dockhand`) identified **74 matching core tools**, **12 Python-exclusive tools**, and additional granular tools available in the Node.js implementation.
 
 ### High Priority / High Utility Enhancements
-- [ ] **System & Docker Pruning Tools (`prune_*`):**
+- [x] **System & Docker Pruning Tools (`prune_*`):**
   - `prune_all`, `prune_containers`, `prune_images`, `prune_networks`, `prune_volumes`
-- [ ] **Advanced Container File Operations:**
+- [x] **Advanced Container File Operations:**
   - `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`
-- [ ] **Advanced Stack Environment Management:**
+- [x] **Advanced Stack Environment Management:**
   - `update_stack_env` (Structured env merge/replace with DB secret support)
   - `remove_stack_env_vars` (Selective key removal from .env/DB)
   - `check_stack_env_collisions`, `validate_stack_env`
