@@ -100,3 +100,36 @@ async def test_create_stack_with_optional_params(mock_client, mock_ctx):
         assert payload["secretProviderId"] == 42
 
         assert result["success"] is True
+
+@pytest.mark.asyncio
+async def test_create_stack_git_params(mock_client, mock_ctx):
+    sse_response_text = 'data: {"success": true}\n'
+
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/stacks?env=3").mock(
+            return_value=Response(
+                200,
+                text=sse_response_text,
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+
+        result = await create_stack(
+            environment_id=3,
+            name="git-stack",
+            ctx=mock_ctx,
+            repository_id=10,
+            branch="main",
+            compose_path="docker-compose.yml",
+        )
+
+        assert route.called
+        request = route.calls.last.request
+        import json
+        payload = json.loads(request.content)
+        assert payload["name"] == "git-stack"
+        assert payload["repositoryId"] == 10
+        assert payload["branch"] == "main"
+        assert payload["composePath"] == "docker-compose.yml"
+        assert "compose" not in payload
+        assert result["success"] is True

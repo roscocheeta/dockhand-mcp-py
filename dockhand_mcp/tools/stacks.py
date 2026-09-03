@@ -29,34 +29,41 @@ async def list_stacks(environment_id: int, ctx: Context) -> list:
 async def create_stack(
     environment_id: int,
     name: str,
-    compose: str,
     ctx: Context,
+    compose: str | None = None,
     compose_path: str | None = None,
     env_path: str | None = None,
     start: bool = True,
     env_vars: list[dict[str, Any]] | None = None,
     raw_env_content: str | None = None,
     secret_provider_id: int | None = None,
+    repository_id: int | None = None,
+    branch: str | None = None,
 ) -> dict:
     """Create a new Docker Compose stack.
 
     Args:
         environment_id: Environment ID where the stack will be created.
         name: Name of the new stack.
-        compose: Docker Compose YAML file content as string.
-        compose_path: Optional explicit path on disk for the compose file.
+        ctx: FastMCP Context.
+        compose: Docker Compose YAML file content as string. Required if not using repository_id.
+        compose_path: Optional explicit path on disk for the compose file (or relative path in git repo).
         env_path: Optional explicit path on disk for the .env file.
         start: Start/deploy the stack immediately after creation (default: True).
         env_vars: Optional environment variables list (dicts with 'key', 'value', and optional 'isSecret').
         raw_env_content: Optional raw .env file content string.
         secret_provider_id: Optional secret provider ID to bind to the stack.
+        repository_id: Optional Git Repository ID to use for the stack.
+        branch: Optional Git branch to use (e.g., 'main' or 'master') when repository_id is provided.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {
         "name": name,
-        "compose": compose,
         "start": start,
     }
+    
+    if compose is not None:
+        body["compose"] = compose
     if compose_path is not None:
         body["composePath"] = compose_path
     if env_path is not None:
@@ -67,6 +74,10 @@ async def create_stack(
         body["rawEnvContent"] = raw_env_content
     if secret_provider_id is not None:
         body["secretProviderId"] = secret_provider_id
+    if repository_id is not None:
+        body["repositoryId"] = repository_id
+    if branch is not None:
+        body["branch"] = branch
 
     return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
 
