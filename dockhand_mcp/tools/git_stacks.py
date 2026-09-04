@@ -35,7 +35,7 @@ async def get_git_stack(stack_id: int, ctx: Context) -> dict:
 async def deploy_git_stack(stack_id: int, ctx: Context) -> dict:
     """Deploy a Git stack. Uses SSE streaming."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy")
+    return await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy-stream")
 
 async def sync_git_stack(stack_id: int, ctx: Context) -> dict:
     """Sync a Git stack with its remote repository."""
