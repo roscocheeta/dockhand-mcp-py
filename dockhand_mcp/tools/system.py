@@ -45,10 +45,17 @@ async def prune_containers(environment_id: int, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post("/api/system/prune/containers", params={"env": environment_id})
 
-async def prune_images(environment_id: int, ctx: Context) -> dict:
-    """Prune unused Docker images."""
+async def prune_images(environment_id: int, ctx: Context, dangling: bool = False) -> dict:
+    """Prune unused Docker images.
+    
+    Args:
+        dangling: If true, only prune dangling images (not tagged and not used). If false, prune all unused images.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post("/api/system/prune/images", params={"env": environment_id})
+    params = {"env": environment_id}
+    if dangling:
+        params["dangling"] = "true"
+    return await client.post("/api/system/prune/images", params=params)
 
 async def prune_networks(environment_id: int, ctx: Context) -> dict:
     """Prune unused Docker networks."""

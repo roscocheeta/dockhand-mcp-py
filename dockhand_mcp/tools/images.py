@@ -41,15 +41,25 @@ async def remove_image(environment_id: int, image_id: str, ctx: Context) -> dict
         params={"env": environment_id}
     )
 
-async def pull_image(environment_id: int, image: str, ctx: Context) -> dict:
+async def pull_image(
+    environment_id: int, 
+    image: str, 
+    ctx: Context,
+    scan_after_pull: bool = False
+) -> dict:
     """
     Pull an image from a registry.
     image: Image name with tag (e.g. nginx:latest)
+    scan_after_pull: Whether to scan the image for vulnerabilities after pulling.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
+    body = {"image": image}
+    if scan_after_pull:
+        body["scanAfterPull"] = True
+        
     return await client.post(
         "/api/images/pull", 
-        json={"image": image}, 
+        json=body, 
         params={"env": environment_id}
     )
 

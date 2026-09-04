@@ -223,6 +223,29 @@ async def update_container(
         params={"env": environment_id}
     )
 
+async def exec_container(
+    environment_id: int,
+    container_id: str,
+    ctx: Context,
+    shell: str | None = None,
+    user: str | None = None,
+) -> dict:
+    """Execute a command/create an interactive terminal session in a container.
+    Returns an execId which can be used to attach via WebSocket.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {}
+    if shell:
+        body["shell"] = shell
+    if user:
+        body["user"] = user
+        
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/exec", 
+        json=body, 
+        params={"envId": environment_id}
+    )
+
 async def write_container_file_content(
     environment_id: int,
     container_id: str,
@@ -303,3 +326,4 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(rename_container)
     mcp.add_tool(create_container)
     mcp.add_tool(update_container)
+    mcp.add_tool(exec_container)

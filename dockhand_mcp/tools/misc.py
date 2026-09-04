@@ -22,10 +22,34 @@ async def list_schedules(ctx: Context) -> list:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/schedules")
 
-async def create_schedule(name: str, cron_expression: str, action: str, ctx: Context) -> dict:
+async def create_schedule(
+    name: str, 
+    cron_expression: str, 
+    action: str, 
+    ctx: Context,
+    vulnerability_criteria: dict | None = None,
+    schedule_type: int | None = None,
+    container_name: str | None = None,
+    env_id: int | None = None,
+    enabled: bool = True
+) -> dict:
     """Create a new automation schedule."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {"name": name, "cron": cron_expression, "action": action}
+    body = {
+        "name": name, 
+        "cron": cron_expression, 
+        "action": action,
+        "enabled": enabled
+    }
+    if vulnerability_criteria:
+        body["vulnerabilityCriteria"] = vulnerability_criteria
+    if schedule_type is not None:
+        body["scheduleType"] = schedule_type
+    if container_name:
+        body["containerName"] = container_name
+    if env_id is not None:
+        body["env"] = env_id
+        
     return await client.post("/api/schedules", json=body)
 
 async def list_templates(ctx: Context) -> list:
@@ -72,14 +96,6 @@ async def set_auto_update(environment_id: int, container_id: str, enabled: bool,
     return await client.put(
         f"/api/containers/{encode_path(container_id)}/auto-update", 
         json={"enabled": enabled},
-        params={"env": environment_id}
-    )
-
-async def scan_image(environment_id: int, image_id: str, ctx: Context) -> dict:
-    """Trigger a vulnerability scan for an image."""
-    client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post(
-        f"/api/images/{encode_path(image_id)}/scan",
         params={"env": environment_id}
     )
 
@@ -132,4 +148,4 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_config_sets)
     mcp.add_tool(get_auto_update)
     mcp.add_tool(set_auto_update)
-    mcp.add_tool(scan_image)
+

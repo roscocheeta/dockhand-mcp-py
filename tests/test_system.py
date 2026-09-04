@@ -62,3 +62,16 @@ async def test_prune_volumes(mock_client, mock_ctx):
         result = await prune_volumes(1, mock_ctx)
         assert route.called
         assert result["VolumesDeleted"] == ["id4"]
+
+@pytest.mark.asyncio
+async def test_prune_images_dangling(mock_client, mock_ctx):
+    from dockhand_mcp.tools.system import prune_images
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/system/prune/images?env=1&dangling=true').mock(
+            return_value=Response(200, json={'success': True})
+        )
+        
+        result = await prune_images(environment_id=1, ctx=mock_ctx, dangling=True)
+        assert route.called
+        assert result['success'] is True
+
