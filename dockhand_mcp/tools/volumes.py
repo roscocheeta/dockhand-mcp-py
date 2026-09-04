@@ -56,8 +56,40 @@ async def get_volume(environment_id: int, volume_name: str, ctx: Context) -> dic
     )
     return strip_nulls(data)
 
+async def create_volume(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+    driver: str = "local",
+    driver_opts: dict | None = None,
+    labels: dict | None = None,
+) -> dict:
+    """Create a new Docker volume.
+
+    Args:
+        environment_id: Environment ID where the volume will be created.
+        name: Name of the new volume.
+        ctx: FastMCP Context.
+        driver: Volume driver to use (default: 'local').
+        driver_opts: Volume driver options as key-value pairs (e.g. for NFS mounts).
+        labels: User-defined labels for organizing volumes.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {
+        "name": name,
+        "driver": driver
+    }
+    if driver_opts is not None:
+        # The Dockhand API expects camelCase 'driverOpts'
+        body["driverOpts"] = driver_opts
+    if labels is not None:
+        body["labels"] = labels
+        
+    return await client.post("/api/volumes", json=body, params={"env": environment_id})
+
 def register_volume_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_volumes)
     mcp.add_tool(get_volume)
     mcp.add_tool(inspect_volume)
+    mcp.add_tool(create_volume)
     mcp.add_tool(delete_volume)

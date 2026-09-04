@@ -167,6 +167,7 @@ async def create_container(
     volumes: list[str] | None = None,
     restart_policy: str | None = None,
     network_mode: str | None = None,
+    labels: dict[str, str] | None = None,
 ) -> dict:
     """Create a new container."""
     client = ctx.request_context.lifespan_context["dockhand"]
@@ -175,6 +176,8 @@ async def create_container(
         body["startAfterCreate"] = True
     if env:
         body["Env"] = env
+    if labels:
+        body["Labels"] = labels
     host_config = {}
     if restart_policy:
         host_config["RestartPolicy"] = {"Name": restart_policy}

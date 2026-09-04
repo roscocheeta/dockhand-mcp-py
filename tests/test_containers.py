@@ -81,3 +81,40 @@ async def test_delete_container_file(mock_client, mock_ctx):
         result = await delete_container_file(1, "my-container", "/tmp/test.txt", mock_ctx)
         assert route.called
 
+
+@pytest.mark.asyncio
+async def test_create_container(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import create_container
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/containers?env=1').mock(
+            return_value=Response(200, json={'success': True})
+        )
+        
+        result = await create_container(
+            environment_id=1,
+            name='test-web',
+            image='nginx:alpine',
+            ctx=mock_ctx,
+            start_after_create=True,
+            env=['FOO=BAR'],
+            ports={'80/tcp': [{'HostPort': '8080'}]},
+            volumes=['/data:/data'],
+            restart_policy='unless-stopped',
+            network_mode='bridge',
+            labels={'app': 'web'}
+        )
+        
+        assert route.called
+        import json
+        payload = json.loads(route.calls.last.request.content)
+        assert payload['name'] == 'test-web'
+        assert payload['image'] == 'nginx:alpine'
+        assert payload['startAfterCreate'] is True
+        assert payload['Env'] == ['FOO=BAR']
+        assert payload['Labels'] == {'app': 'web'}
+        assert payload['HostConfig']['RestartPolicy'] == {'Name': 'unless-stopped'}
+        assert payload['HostConfig']['PortBindings'] == {'80/tcp': [{'HostPort': '8080'}]}
+        assert payload['HostConfig']['Binds'] == ['/data:/data']
+        assert payload['HostConfig']['NetworkMode'] == 'bridge'
+        assert result['success'] is True
+

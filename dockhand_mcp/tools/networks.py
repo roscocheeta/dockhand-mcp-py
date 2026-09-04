@@ -41,6 +41,46 @@ async def delete_network(environment_id: int, network_id: str, ctx: Context) -> 
         params={"env": environment_id}
     )
 
+async def create_network(
+    environment_id: int, 
+    name: str, 
+    ctx: Context,
+    driver: str = "bridge",
+    options: dict | None = None,
+    labels: dict | None = None,
+    ipam: dict | None = None,
+    internal: bool = False,
+    attachable: bool = False
+) -> dict:
+    """Create a new Docker network.
+
+    Args:
+        environment_id: Environment ID where the network will be created.
+        name: Name of the new network.
+        ctx: FastMCP Context.
+        driver: Network driver to use (default: 'bridge').
+        options: Network driver options as key-value dict.
+        labels: User-defined labels for organizing networks.
+        ipam: IP Address Management configuration (IPAM).
+        internal: Restrict external access to the network (default: False).
+        attachable: Allow manual container attachment (default: False).
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {
+        "name": name,
+        "driver": driver,
+        "internal": internal,
+        "attachable": attachable
+    }
+    if options is not None:
+        body["options"] = options
+    if labels is not None:
+        body["labels"] = labels
+    if ipam is not None:
+        body["ipam"] = ipam
+        
+    return await client.post("/api/networks", json=body, params={"env": environment_id})
+
 async def get_network(environment_id: int, network_id: str, ctx: Context) -> dict:
     """Get details for a specific Docker network."""
     client = ctx.request_context.lifespan_context["dockhand"]
@@ -54,4 +94,5 @@ def register_network_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_networks)
     mcp.add_tool(get_network)
     mcp.add_tool(inspect_network)
+    mcp.add_tool(create_network)
     mcp.add_tool(delete_network)

@@ -25,3 +25,28 @@ async def test_list_vulnerabilities(mock_client, mock_ctx):
         result = await list_vulnerabilities(1, mock_ctx)
         assert route.called
         assert result == [{"id": "CVE-123"}]
+
+@pytest.mark.asyncio
+async def test_scan_image(mock_client):
+    from dockhand_mcp.tools.security import scan_image
+    mock_ctx = MockContext(mock_client)
+    
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/images/scan?env=1').mock(
+            return_value=Response(200, json={'jobId': '123'})
+        )
+        
+        result = await scan_image(
+            environment_id=1,
+            image_name='nginx:latest',
+            ctx=mock_ctx,
+            scanner='trivy'
+        )
+        
+        assert route.called
+        import json
+        payload = json.loads(route.calls.last.request.content)
+        assert payload['imageName'] == 'nginx:latest'
+        assert payload['scanner'] == 'trivy'
+        assert result['jobId'] == '123'
+
