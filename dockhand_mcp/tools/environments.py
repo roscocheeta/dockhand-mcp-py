@@ -37,23 +37,48 @@ async def create_environment(
     ctx: Context,
     host: str | None = None,
     port: int | None = None,
-    url: str | None = None,
+    protocol: str = "http",
+    socket_path: str = "/var/run/docker.sock",
+    tls_ca: str | None = None,
+    tls_cert: str | None = None,
+    tls_key: str | None = None,
+    tls_skip_verify: bool = False,
+    hawser_token: str | None = None,
+    icon: str = "globe",
+    labels: list[str] | None = None,
+    collect_activity: bool = True,
+    collect_metrics: bool = True,
 ) -> dict:
     """
     Create a new Docker environment in Dockhand.
-    connection_type is typically 'hawser-standard' or 'hawser-edge'.
-    For hawser-standard, provide host/port.
+    connection_type can be 'socket', 'direct', 'hawser-standard', or 'hawser-edge'.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {"name": name, "connectionType": connection_type}
+    body = {
+        "name": name, 
+        "connectionType": connection_type,
+        "protocol": protocol,
+        "socketPath": socket_path,
+        "tlsSkipVerify": tls_skip_verify,
+        "icon": icon,
+        "collectActivity": collect_activity,
+        "collectMetrics": collect_metrics,
+    }
     
-    if connection_type == "hawser-standard":
-        if host:
-            body["host"] = host
-            body["port"] = port if port is not None else 2376
-        elif url:
-            # Basic best-effort fallback if caller sends 'url'
-            body["url"] = url
+    if host:
+        body["host"] = host
+    if port is not None:
+        body["port"] = port
+    if tls_ca:
+        body["tlsCa"] = tls_ca
+    if tls_cert:
+        body["tlsCert"] = tls_cert
+    if tls_key:
+        body["tlsKey"] = tls_key
+    if hawser_token:
+        body["hawserToken"] = hawser_token
+    if labels is not None:
+        body["labels"] = labels
             
     env = await client.post("/api/environments", json=body)
     return _strip_environment_credentials(env)
@@ -62,18 +87,54 @@ async def update_environment(
     environment_id: int,
     ctx: Context,
     name: str | None = None,
+    connection_type: str | None = None,
+    host: str | None = None,
+    port: int | None = None,
+    protocol: str | None = None,
+    socket_path: str | None = None,
+    tls_ca: str | None = None,
+    tls_cert: str | None = None,
+    tls_key: str | None = None,
+    tls_skip_verify: bool | None = None,
+    hawser_token: str | None = None,
     icon: str | None = None,
     labels: list[str] | None = None,
+    collect_activity: bool | None = None,
+    collect_metrics: bool | None = None,
 ) -> dict:
-    """Update basic fields on an existing environment."""
+    """Update fields on an existing environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if name is not None:
         body["name"] = name
+    if connection_type is not None:
+        body["connectionType"] = connection_type
+    if host is not None:
+        body["host"] = host
+    if port is not None:
+        body["port"] = port
+    if protocol is not None:
+        body["protocol"] = protocol
+    if socket_path is not None:
+        body["socketPath"] = socket_path
+    if tls_ca is not None:
+        body["tlsCa"] = tls_ca
+    if tls_cert is not None:
+        body["tlsCert"] = tls_cert
+    if tls_key is not None:
+        body["tlsKey"] = tls_key
+    if tls_skip_verify is not None:
+        body["tlsSkipVerify"] = tls_skip_verify
+    if hawser_token is not None:
+        body["hawserToken"] = hawser_token
     if icon is not None:
         body["icon"] = icon
     if labels is not None:
         body["labels"] = labels
+    if collect_activity is not None:
+        body["collectActivity"] = collect_activity
+    if collect_metrics is not None:
+        body["collectMetrics"] = collect_metrics
         
     env = await client.put(f"/api/environments/{encode_path(str(environment_id))}", json=body)
     return _strip_environment_credentials(env)

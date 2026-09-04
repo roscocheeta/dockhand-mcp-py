@@ -78,9 +78,44 @@ async def tag_image(
         params={"env": environment_id}
     )
 
+async def push_image(
+    environment_id: int,
+    image_id: str,
+    registry_id: int,
+    ctx: Context,
+    image_name: str | None = None,
+    new_tag: str | None = None
+) -> dict:
+    """Push an image to a registry.
+    
+    Args:
+        environment_id: Environment ID.
+        image_id: The ID of the image to push (e.g. sha256 or name).
+        registry_id: ID of the configured registry in Dockhand.
+        ctx: FastMCP Context.
+        image_name: Optional original image name.
+        new_tag: Custom tag for the pushed image (e.g. username/myapp:v1.0).
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {
+        "imageId": image_id,
+        "registryId": registry_id
+    }
+    if image_name:
+        body["imageName"] = image_name
+    if new_tag:
+        body["newTag"] = new_tag
+        
+    return await client.post(
+        "/api/images/push", 
+        json=body, 
+        params={"env": environment_id}
+    )
+
 def register_image_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_images)
     mcp.add_tool(get_image_history)
     mcp.add_tool(remove_image)
     mcp.add_tool(pull_image)
     mcp.add_tool(tag_image)
+    mcp.add_tool(push_image)

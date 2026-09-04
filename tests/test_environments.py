@@ -54,3 +54,56 @@ async def test_get_environment(mock_client, mock_ctx):
         
         assert result["Id"] == 1
         assert "hawserToken" not in result
+
+@pytest.mark.asyncio
+async def test_create_environment_advanced(mock_client, mock_ctx):
+    from dockhand_mcp.tools.environments import create_environment
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/environments').mock(
+            return_value=Response(200, json={'id': 2, 'name': 'Edge Node'})
+        )
+        
+        result = await create_environment(
+            name='Edge Node',
+            connection_type='hawser-edge',
+            ctx=mock_ctx,
+            protocol='https',
+            tls_skip_verify=True,
+            icon='server',
+            hawser_token='secret-token',
+            labels=['prod', 'edge'],
+            collect_metrics=False
+        )
+        assert route.called
+        import json
+        payload = json.loads(route.calls.last.request.content)
+        assert payload['name'] == 'Edge Node'
+        assert payload['connectionType'] == 'hawser-edge'
+        assert payload['protocol'] == 'https'
+        assert payload['tlsSkipVerify'] is True
+        assert payload['icon'] == 'server'
+        assert payload['hawserToken'] == 'secret-token'
+        assert payload['labels'] == ['prod', 'edge']
+        assert payload['collectMetrics'] is False
+        assert result['name'] == 'Edge Node'
+
+@pytest.mark.asyncio
+async def test_update_environment_advanced(mock_client, mock_ctx):
+    from dockhand_mcp.tools.environments import update_environment
+    with respx.mock:
+        route = respx.put('http://dockhand.test/api/environments/1').mock(
+            return_value=Response(200, json={'id': 1, 'name': 'Updated'})
+        )
+        
+        result = await update_environment(
+            environment_id=1,
+            ctx=mock_ctx,
+            tls_ca='-----BEGIN CERTIFICATE-----...',
+            port=2376
+        )
+        assert route.called
+        import json
+        payload = json.loads(route.calls.last.request.content)
+        assert payload['tlsCa'] == '-----BEGIN CERTIFICATE-----...'
+        assert payload['port'] == 2376
+
