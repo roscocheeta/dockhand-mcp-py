@@ -1,4 +1,0 @@
-import inspect
-from mcp.server.fastmcp import FastMCP
-
-print(dir(FastMCP))
