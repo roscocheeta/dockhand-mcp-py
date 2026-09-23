@@ -19,6 +19,7 @@ The server exposes the following tools to the LLM agent:
 - `get_server_info`: Fetch Dockhand system/version information.
 - `get_host_info`: Fetch OS and host hardware information.
 - `get_changelog`: Get the Dockhand release changelog.
+- `prune_all`, `prune_containers`, `prune_images`, `prune_networks`, `prune_volumes`: System pruning tools.
 
 ### Environments
 - `list_environments`: List all Docker hosts managed by Dockhand.
@@ -28,32 +29,35 @@ The server exposes the following tools to the LLM agent:
 
 ### Containers
 - **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`
-- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`
+- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`
 - **Write**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag)
-- **Lifecycle**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`
+- **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`
 
 ### Stacks (Docker Compose)
 - `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`
-- `get_stack_env`, `get_stack_env_raw`, `update_stack_env_raw`
-- `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`
+- `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`
+- `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`, `get_stack_delete_preview`
+- `adopt_stack`, `relocate_stack`, `get_stack_deploy_history`, `get_stack_deploy_log`
 
 ### Git Stacks
-- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`
-- `list_git_credentials`, `list_git_repositories`
+- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`
+- `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`
+- `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`
 
 ### Networks & Volumes
 - `list_networks`, `inspect_network`, `delete_network`
 - `list_volumes`, `inspect_volume`, `delete_volume`
 
 ### Administration & Security
-- **Users/Auth:** `list_users`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`
-- **Registries:** `list_registries`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
+- **Users/Auth:** `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
+- **Registries:** `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
 - **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
 
 ### Automation & Misc
 - **Schedules & Updates:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`
-- **Alerts & Scans:** `list_notifications`, `create_notification`, `scan_image`
-- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `list_config_sets`, `get_preferences`, `set_preferences`
+- **Backups:** `delete_snapshots`
+- **Alerts & Scans:** `list_notifications`, `get_notification`, `create_notification`, `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image`
+- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`
 
 ## Security & Privacy Note
 
