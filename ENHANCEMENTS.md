@@ -46,3 +46,7 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 - [x] **Single Resource Getters:** `get_network`, `get_volume`, `get_registry`, `get_user`, `get_notification`, `get_secret_provider`
 - [x] **Granular Settings/Preferences:** `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`
 - [x] **SSO / Enterprise Auth:** `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
+
+### Future Feature Considerations
+- [ ] **Container Attach Terminal Mode (\ttach_container\):** Dockhand v1.0.48 added a native \docker attach\ terminal mode. However, this is implemented as a direct WebSocket connection rather than a REST API route. We should evaluate how to best wrap this WebSocket stream within an MCP tool, as \httpx\ natively only supports standard REST requests, making it difficult to proxy raw streaming byte traffic.
+
