@@ -26,3 +26,5 @@ Thumbs.db
 htmlcov/
 .coverage
 .agents/status.md
+scratch
+scratch/*
