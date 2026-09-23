@@ -302,6 +302,22 @@ async def relocate_stack(
         params={"env": environment_id}
     )
 
+async def get_stack_deploy_history(environment_id: int, name: str, ctx: Context) -> dict:
+    """Get the deployment history runs for a stack."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/stacks/{encode_path(name)}/deploys",
+        params={"env": environment_id}
+    )
+
+async def get_stack_deploy_log(environment_id: int, name: str, run_id: int, ctx: Context) -> dict:
+    """Get the raw deployment log text for a specific stack deploy run."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/stacks/{encode_path(name)}/deploys/{encode_path(str(run_id))}/log",
+        params={"env": environment_id}
+    )
+
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
     mcp.add_tool(create_stack)
@@ -323,3 +339,6 @@ def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(restart_stack)
     mcp.add_tool(down_stack)
     mcp.add_tool(delete_stack)
+    mcp.add_tool(get_stack_deploy_history)
+    mcp.add_tool(get_stack_deploy_log)
+

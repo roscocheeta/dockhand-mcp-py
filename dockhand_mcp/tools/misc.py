@@ -129,6 +129,14 @@ async def set_grid_preferences(grid: dict, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/users/preferences/grid", json=grid)
 
+async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Context) -> dict:
+    """Bulk-delete backup snapshots from a specific destination."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        "/api/backup/snapshots/batch-delete",
+        json={"destinationId": destination_id, "snapshotIds": snapshot_ids}
+    )
+
 def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_notifications)
     mcp.add_tool(get_notification)
@@ -148,4 +156,5 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_config_sets)
     mcp.add_tool(get_auto_update)
     mcp.add_tool(set_auto_update)
+    mcp.add_tool(delete_snapshots)
 
