@@ -48,5 +48,4 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 - [x] **SSO / Enterprise Auth:** `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
 
 ### Future Feature Considerations
-- [ ] **Container Attach Terminal Mode (\ttach_container\):** Dockhand v1.0.48 added a native \docker attach\ terminal mode. However, this is implemented as a direct WebSocket connection rather than a REST API route. We should evaluate how to best wrap this WebSocket stream within an MCP tool, as \httpx\ natively only supports standard REST requests, making it difficult to proxy raw streaming byte traffic.
-
+- [x] **Container Exec Mode (run_container_exec):** While Dockhand v1.0.48 added a WebSocket-based attach terminal, v1.0.49 introduced a true REST-based one-shot container exec API. This completely resolves the WebSocket limitation and allows the MCP server to easily execute commands inside containers and synchronously return stdout, stderr, and exitCode.

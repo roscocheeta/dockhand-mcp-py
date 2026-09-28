@@ -261,19 +261,91 @@ async def write_container_file_content(
         params={"env": environment_id, "path": path},
     )
 
+import base64
+
 async def upload_container_file(
     environment_id: int,
     container_id: str,
-    path: str,
+    directory: str,
+    filename: str,
     base64_content: str,
     ctx: Context,
+    owner: str | None = None,
 ) -> dict:
-    """Upload a file to a container using base64 encoded content."""
+    """Upload a file to a container directory using base64 encoded content. Owner format: 'user', 'uid', 'user:group', 'uid:gid'."""
     client = ctx.request_context.lifespan_context["dockhand"]
+    try:
+        file_bytes = base64.b64decode(base64_content)
+    except Exception as e:
+        raise ValueError(f"Invalid base64_content: {e}")
+
+    files = {"files": (filename, file_bytes)}
+    data = {}
+    if owner:
+        data["owner"] = owner
+
     return await client.post(
         f"/api/containers/{encode_path(container_id)}/files/upload",
-        json={"content": base64_content},
-        params={"env": environment_id, "path": path},
+        files=files,
+        data=data,
+        params={"env": environment_id, "path": directory},
+    )
+
+async def create_container_path(
+    environment_id: int,
+    container_id: str,
+    path: str,
+    type: str,
+    ctx: Context,
+    owner: str | None = None,
+) -> dict:
+    """Create an empty file or directory inside a container. Type must be 'file' or 'directory'."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {"path": path, "type": type}
+    if owner:
+        body["owner"] = owner
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/files/create",
+        json=body,
+        params={"env": environment_id},
+    )
+
+async def chown_container_file(
+    environment_id: int,
+    container_id: str,
+    path: str,
+    owner: str,
+    ctx: Context,
+    recursive: bool = False,
+) -> dict:
+    """Change the owner/group of a file or directory inside a container."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/files/chown",
+        json={"path": path, "owner": owner, "recursive": recursive},
+        params={"env": environment_id},
+    )
+
+async def run_container_exec(
+    environment_id: int,
+    container_id: str,
+    cmd: list[str],
+    ctx: Context,
+    user: str | None = None,
+    working_dir: str | None = None,
+) -> dict:
+    """Run a one-shot command in a container and wait for the result (returns stdout, stderr, exitCode)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body = {"cmd": cmd}
+    if user:
+        body["user"] = user
+    if working_dir:
+        body["workingDir"] = working_dir
+        
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/exec/run", 
+        json=body, 
+        params={"envId": environment_id}
     )
 
 async def delete_container_file(
@@ -315,6 +387,8 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_container_file_content)
     mcp.add_tool(write_container_file_content)
     mcp.add_tool(upload_container_file)
+    mcp.add_tool(create_container_path)
+    mcp.add_tool(chown_container_file)
     mcp.add_tool(delete_container_file)
     mcp.add_tool(rename_container_file)
     mcp.add_tool(start_container)
@@ -327,3 +401,4 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(create_container)
     mcp.add_tool(update_container)
     mcp.add_tool(exec_container)
+    mcp.add_tool(run_container_exec)
