@@ -29,9 +29,9 @@ The server exposes the following tools to the LLM agent:
 
 ### Containers
 - **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`
-- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`
+- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`, `chown_container_file`, `create_container_path`
 - **Write**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag)
-- **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`
+- **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`, `run_container_exec`
 
 ### Stacks (Docker Compose)
 - `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`

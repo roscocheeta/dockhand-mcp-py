@@ -169,9 +169,11 @@ class DockhandClient:
         path: str,
         json: Any = None,
         params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        files: Optional[dict[str, Any]] = None,
     ) -> Any:
         """Authenticated POST returning parsed JSON."""
-        return await self._request("POST", path, json_body=json, params=params)
+        return await self._request("POST", path, json_body=json, params=params, data=data, files=files)
 
     async def put(
         self,
@@ -294,12 +296,14 @@ class DockhandClient:
         path: str,
         json_body: Any = None,
         params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        files: Optional[dict[str, Any]] = None,
     ) -> Any:
         """
         Make an authenticated request, parse JSON, and handle errors.
         Retries once on 401 after re-login.
         """
-        resp = await self._request_raw(method, path, json_body=json_body, params=params)
+        resp = await self._request_raw(method, path, json_body=json_body, params=params, data=data, files=files)
         return self._parse_response(resp)
 
     async def _request_raw(
@@ -308,6 +312,8 @@ class DockhandClient:
         path: str,
         json_body: Any = None,
         params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        files: Optional[dict[str, Any]] = None,
     ) -> httpx.Response:
         """
         Make an authenticated request with transparent 401 retry.
@@ -324,6 +330,10 @@ class DockhandClient:
         kwargs: dict[str, Any] = {}
         if json_body is not None:
             kwargs["json"] = json_body
+        if data is not None:
+            kwargs["data"] = data
+        if files is not None:
+            kwargs["files"] = files
         if clean_params:
             kwargs["params"] = clean_params
 
@@ -332,7 +342,7 @@ class DockhandClient:
         
         resp = await self._client.request(method, path, **kwargs)
 
-        # Transparent 401 retry — re-login and try once more.
+        # Transparent 401 retry - re-login and try once more.
         if resp.status_code == 401:
             logger.info("Received 401 on %s %s, re-authenticating...", method, path)
             await self._auth.invalidate_and_retry(self._client, current_version)

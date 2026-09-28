@@ -118,3 +118,73 @@ async def test_create_container(mock_client, mock_ctx):
         assert payload['HostConfig']['NetworkMode'] == 'bridge'
         assert result['success'] is True
 
+
+@pytest.mark.asyncio
+async def test_run_container_exec(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import run_container_exec
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/containers/123/exec/run').mock(
+            return_value=Response(200, json={'stdout': 'hello\\n', 'stderr': '', 'exitCode': 0})
+        )
+        result = await run_container_exec(environment_id=1, container_id='123', cmd=['echo', 'hello'], ctx=mock_ctx)
+        assert route.called
+        assert result['stdout'] == 'hello\\n'
+
+@pytest.mark.asyncio
+async def test_upload_container_file(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import upload_container_file
+    import base64
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/containers/123/files/upload').mock(
+            return_value=Response(200, json={'success': True})
+        )
+        b64 = base64.b64encode(b'test').decode()
+        result = await upload_container_file(
+            environment_id=1, 
+            container_id='123', 
+            directory='/app', 
+            filename='test.txt',
+            base64_content=b64, 
+            owner='1000:1000', 
+            ctx=mock_ctx
+        )
+        assert route.called
+        assert result['success'] is True
+
+
+
+@pytest.mark.asyncio
+async def test_create_container_path(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import create_container_path
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/containers/123/files/create').mock(
+            return_value=Response(200, json={'success': True, 'path': '/app/data', 'type': 'directory', 'owner': '1000:1000'})
+        )
+        result = await create_container_path(
+            environment_id=1, 
+            container_id='123', 
+            path='/app/data', 
+            type='directory',
+            owner='1000:1000', 
+            ctx=mock_ctx
+        )
+        assert route.called
+        assert result['success'] is True
+
+@pytest.mark.asyncio
+async def test_chown_container_file(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import chown_container_file
+    with respx.mock:
+        route = respx.post('http://dockhand.test/api/containers/123/files/chown').mock(
+            return_value=Response(200, json={'success': True})
+        )
+        result = await chown_container_file(
+            environment_id=1, 
+            container_id='123', 
+            path='/app/data', 
+            owner='1000:1000',
+            recursive=True, 
+            ctx=mock_ctx
+        )
+        assert route.called
+        assert result['success'] is True
