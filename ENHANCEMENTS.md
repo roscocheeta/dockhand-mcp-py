@@ -49,3 +49,8 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 
 ### Future Feature Considerations
 - [x] **Container Exec Mode (run_container_exec):** While Dockhand v1.0.48 added a WebSocket-based attach terminal, v1.0.49 introduced a true REST-based one-shot container exec API. This completely resolves the WebSocket limitation and allows the MCP server to easily execute commands inside containers and synchronously return stdout, stderr, and exitCode.
+
+### Dockhand v1.0.51 Enhancements
+- [x] **Tag Catalog Management:** Added tools to list, create, update, and delete global catalog tags (colors and icons) via /api/tags.
+- [x] **UI Custom Ordering:** Added tools to read and write custom sort orders for Environments and Tags via /api/preferences/*-order.
+

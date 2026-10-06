@@ -137,6 +137,42 @@ async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Co
         json={"destinationId": destination_id, "snapshotIds": snapshot_ids}
     )
 
+async def get_environment_order(ctx: Context) -> list[int]:
+    """Retrieve the saved environment order (most preferred first)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.get('/api/preferences/environment-order')
+    return data.get('order', [])
+
+async def set_environment_order(order: list[int], ctx: Context) -> list[int]:
+    """Save the environment order (array of environment ids)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.post('/api/preferences/environment-order', json={'order': order})
+    return data.get('order', [])
+
+async def reset_environment_order(ctx: Context) -> list[int]:
+    """Reset the environment order back to the default."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.delete('/api/preferences/environment-order')
+    return data.get('order', [])
+
+async def get_tag_order(ctx: Context) -> list[int]:
+    """Retrieve the saved tag order (most preferred first)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.get('/api/preferences/tag-order')
+    return data.get('order', [])
+
+async def set_tag_order(order: list[int], ctx: Context) -> list[int]:
+    """Save the tag order (array of tag ids)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.post('/api/preferences/tag-order', json={'order': order})
+    return data.get('order', [])
+
+async def reset_tag_order(ctx: Context) -> list[int]:
+    """Reset the tag order back to the default."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    data = await client.delete('/api/preferences/tag-order')
+    return data.get('order', [])
+
 def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_notifications)
     mcp.add_tool(get_notification)
@@ -157,4 +193,10 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_auto_update)
     mcp.add_tool(set_auto_update)
     mcp.add_tool(delete_snapshots)
+    mcp.add_tool(get_environment_order)
+    mcp.add_tool(set_environment_order)
+    mcp.add_tool(reset_environment_order)
+    mcp.add_tool(get_tag_order)
+    mcp.add_tool(set_tag_order)
+    mcp.add_tool(reset_tag_order)
 

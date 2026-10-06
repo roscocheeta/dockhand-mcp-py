@@ -88,3 +88,57 @@ async def test_delete_snapshots(mock_client):
         assert payload['snapshotIds'] == ['1a2b3c4d']
         assert result['deleted'] == ['1a2b3c4d']
 
+
+@pytest.mark.asyncio
+async def test_environment_order(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import get_environment_order, set_environment_order, reset_environment_order
+    with respx.mock:
+        get_route = respx.get('http://dockhand.test/api/preferences/environment-order').mock(
+            return_value=Response(200, json={'order': [3, 1, 2]})
+        )
+        post_route = respx.post('http://dockhand.test/api/preferences/environment-order').mock(
+            return_value=Response(200, json={'order': [1, 2, 3]})
+        )
+        delete_route = respx.delete('http://dockhand.test/api/preferences/environment-order').mock(
+            return_value=Response(200, json={'order': []})
+        )
+        
+        get_res = await get_environment_order(ctx=mock_ctx)
+        assert get_route.called
+        assert get_res == [3, 1, 2]
+        
+        post_res = await set_environment_order([1, 2, 3], ctx=mock_ctx)
+        assert post_route.called
+        assert post_res == [1, 2, 3]
+        
+        del_res = await reset_environment_order(ctx=mock_ctx)
+        assert delete_route.called
+        assert del_res == []
+
+@pytest.mark.asyncio
+async def test_tag_order(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import get_tag_order, set_tag_order, reset_tag_order
+    with respx.mock:
+        get_route = respx.get('http://dockhand.test/api/preferences/tag-order').mock(
+            return_value=Response(200, json={'order': [3, 1, 2]})
+        )
+        post_route = respx.post('http://dockhand.test/api/preferences/tag-order').mock(
+            return_value=Response(200, json={'order': [1, 2, 3]})
+        )
+        delete_route = respx.delete('http://dockhand.test/api/preferences/tag-order').mock(
+            return_value=Response(200, json={'order': []})
+        )
+        
+        get_res = await get_tag_order(ctx=mock_ctx)
+        assert get_route.called
+        assert get_res == [3, 1, 2]
+        
+        post_res = await set_tag_order([1, 2, 3], ctx=mock_ctx)
+        assert post_route.called
+        assert post_res == [1, 2, 3]
+        
+        del_res = await reset_tag_order(ctx=mock_ctx)
+        assert delete_route.called
+        assert del_res == []
