@@ -23,6 +23,8 @@ from .security import register_security_tools
 from .auth_providers import register_auth_provider_tools
 
 
+from .tags import register_tag_tools
+
 def register_all_tools(mcp: FastMCP) -> None:
     """Register all tool modules on the FastMCP/MCPServer instance."""
     register_environment_tools(mcp)
@@ -42,3 +44,4 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_misc_tools(mcp)
     register_security_tools(mcp)
     register_auth_provider_tools(mcp)
+    register_tag_tools(mcp)

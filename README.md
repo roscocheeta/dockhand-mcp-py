@@ -48,6 +48,9 @@ The server exposes the following tools to the LLM agent:
 - `list_networks`, `inspect_network`, `delete_network`
 - `list_volumes`, `inspect_volume`, `delete_volume`
 
+### Tags
+- `list_tags`, `create_tag`, `update_tag`, `delete_tag`
+
 ### Administration & Security
 - **Users/Auth:** `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
 - **Registries:** `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
@@ -57,7 +60,7 @@ The server exposes the following tools to the LLM agent:
 - **Schedules & Updates:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`
 - **Backups:** `delete_snapshots`
 - **Alerts & Scans:** `list_notifications`, `get_notification`, `create_notification`, `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image`
-- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`
+- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
 
 ## Security & Privacy Note
 
