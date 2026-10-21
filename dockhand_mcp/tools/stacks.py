@@ -310,7 +310,7 @@ async def get_stack_delete_preview(
     """Get a preview of what will be deleted when removing a stack."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
-        f"/api/stacks/{encode_path(name)}/delete/preview",
+        f"/api/stacks/{encode_path(name)}/delete-preview",
         params={"env": environment_id}
     )
 
