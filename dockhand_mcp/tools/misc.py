@@ -173,6 +173,70 @@ async def reset_tag_order(ctx: Context) -> list[int]:
     data = await client.delete('/api/preferences/tag-order')
     return data.get('order', [])
 
+async def get_minimum_release_age(ctx: Context) -> dict:
+    """Get the global minimum image age in hours before automatic updates apply."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/settings/minimum-release-age")
+
+async def set_minimum_release_age(hours: int, ctx: Context) -> dict:
+    """Set the global minimum image age in hours (0 to 720) before automatic updates apply."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/settings/minimum-release-age", json={"hours": hours})
+
+async def create_secret_provider(name: str, type: str, config: dict, ctx: Context) -> dict:
+    """Create a secret provider (e.g. Vault, Infisical, Doppler, 1Password Connect, Psono).
+
+    SECURITY WARNING: The config parameter may contain sensitive credentials in plain text.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/secret-providers", json={"name": name, "type": type, "config": config})
+
+async def update_secret_provider(
+    provider_id: int,
+    ctx: Context,
+    name: str | None = None,
+    type: str | None = None,
+    config: dict | None = None,
+) -> dict:
+    """Update a secret provider (name, type, and/or rotate its config).
+
+    SECURITY WARNING: The config parameter may contain sensitive credentials in plain text.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body: dict = {}
+    if name is not None:
+        body["name"] = name
+    if type is not None:
+        body["type"] = type
+    if config is not None:
+        body["config"] = config
+    return await client.put(f"/api/secret-providers/{encode_path(str(provider_id))}", json=body)
+
+async def delete_secret_provider(provider_id: int, ctx: Context) -> dict:
+    """Delete a secret provider."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.delete(f"/api/secret-providers/{encode_path(str(provider_id))}")
+
+async def execute_batch_operation(
+    operation: str,
+    entity_type: str,
+    items: list[dict[str, str]],
+    ctx: Context,
+    environment_id: int | None = None,
+    force: bool = False,
+    remove_volumes: bool = False,
+) -> dict:
+    """Run a bulk operation (start/stop/restart/pause/unpause/remove/down) across containers, images, volumes, networks, or stacks."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    params = {"env": environment_id} if environment_id is not None else None
+    body = {
+        "operation": operation,
+        "entityType": entity_type,
+        "items": items,
+        "options": {"force": force, "removeVolumes": remove_volumes},
+    }
+    return await client.post_sse("/api/batch", json=body, params=params)
+
 def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_notifications)
     mcp.add_tool(get_notification)
@@ -189,6 +253,9 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(set_grid_preferences)
     mcp.add_tool(list_secret_providers)
     mcp.add_tool(get_secret_provider)
+    mcp.add_tool(create_secret_provider)
+    mcp.add_tool(update_secret_provider)
+    mcp.add_tool(delete_secret_provider)
     mcp.add_tool(list_config_sets)
     mcp.add_tool(get_auto_update)
     mcp.add_tool(set_auto_update)
@@ -199,4 +266,7 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_tag_order)
     mcp.add_tool(set_tag_order)
     mcp.add_tool(reset_tag_order)
+    mcp.add_tool(get_minimum_release_age)
+    mcp.add_tool(set_minimum_release_age)
+    mcp.add_tool(execute_batch_operation)
 

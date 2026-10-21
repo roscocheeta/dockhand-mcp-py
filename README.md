@@ -26,15 +26,17 @@ The server exposes the following tools to the LLM agent:
 - `get_environment`: Get details for a specific environment (automatically strips `tlsKey` and `hawserToken` for security).
 - `create_environment`, `update_environment`, `delete_environment`: Manage environment configurations.
 - `test_environment`: Validate connectivity to an environment.
+- `get_environment_update_check_settings`, `update_environment_update_check_settings`: Manage automatic container update-check schedules and minimum release age overrides.
+- `get_environment_report`, `get_environment_report_settings`, `update_environment_report_settings`: Export environment state reports and configure scheduled reports.
 
 ### Containers
-- **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`
+- **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`
 - **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`, `chown_container_file`, `create_container_path`
-- **Write**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag)
+- **Write & Updates**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag), `check_container_updates`, `get_pending_container_updates`
 - **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`, `run_container_exec`
 
 ### Stacks (Docker Compose)
-- `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`
+- `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`, `get_stack_stats`, `get_stack_path_hints`
 - `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`
 - `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`, `get_stack_delete_preview`
 - `adopt_stack`, `relocate_stack`, `get_stack_deploy_history`, `get_stack_deploy_log`
@@ -49,18 +51,18 @@ The server exposes the following tools to the LLM agent:
 - `list_volumes`, `inspect_volume`, `delete_volume`
 
 ### Tags
-- `list_tags`, `create_tag`, `update_tag`, `delete_tag`
+- `list_tags`, `create_tag`, `update_tag`, `delete_tag`, `get_stack_tags`, `set_stack_tags`
 
 ### Administration & Security
-- **Users/Auth:** `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
+- **Users/Auth:** `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_passkeys`, `delete_passkey`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
 - **Registries:** `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
 - **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
 
 ### Automation & Misc
-- **Schedules & Updates:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`
+- **Schedules, Updates & Batch:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`, `get_minimum_release_age`, `set_minimum_release_age`, `execute_batch_operation`
 - **Backups:** `delete_snapshots`
 - **Alerts & Scans:** `list_notifications`, `get_notification`, `create_notification`, `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image`
-- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
+- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
 
 ## Security & Privacy Note
 

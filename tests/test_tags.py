@@ -1,7 +1,14 @@
 import pytest
 import respx
 from httpx import Response
-from dockhand_mcp.tools.tags import list_tags, create_tag, update_tag, delete_tag
+from dockhand_mcp.tools.tags import (
+    list_tags,
+    create_tag,
+    update_tag,
+    delete_tag,
+    get_stack_tags,
+    set_stack_tags,
+)
 
 class MockContext:
     def __init__(self, client):
@@ -54,3 +61,21 @@ async def test_delete_tag(mock_client):
         result = await delete_tag(tag_id=2, ctx=mock_ctx)
         assert route.called
         assert result['success'] is True
+
+@pytest.mark.asyncio
+async def test_stack_tags(mock_client):
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        get_route = respx.get('http://dockhand.test/api/stacks/web/tags?env=1').mock(
+            return_value=Response(200, json={'tagIds': [1, 3]})
+        )
+        put_route = respx.put('http://dockhand.test/api/stacks/web/tags?env=1').mock(
+            return_value=Response(200, json={'tagIds': [2]})
+        )
+        get_res = await get_stack_tags(environment_id=1, name='web', ctx=mock_ctx)
+        assert get_route.called
+        assert get_res == [1, 3]
+
+        put_res = await set_stack_tags(environment_id=1, name='web', tag_ids=[2], ctx=mock_ctx)
+        assert put_route.called
+        assert put_res == [2]

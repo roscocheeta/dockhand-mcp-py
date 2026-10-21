@@ -142,3 +142,94 @@ async def test_tag_order(mock_client):
         del_res = await reset_tag_order(ctx=mock_ctx)
         assert delete_route.called
         assert del_res == []
+
+
+@pytest.mark.asyncio
+async def test_minimum_release_age(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import get_minimum_release_age, set_minimum_release_age
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/settings/minimum-release-age").mock(
+            return_value=Response(200, json={"hours": 24, "overridden": False, "inherited": False})
+        )
+        post_route = respx.post("http://dockhand.test/api/settings/minimum-release-age").mock(
+            return_value=Response(200, json={"hours": 48, "overridden": False})
+        )
+
+        get_res = await get_minimum_release_age(ctx=mock_ctx)
+        assert get_route.called
+        assert get_res["hours"] == 24
+
+        post_res = await set_minimum_release_age(hours=48, ctx=mock_ctx)
+        assert post_route.called
+        assert post_res["hours"] == 48
+
+
+@pytest.mark.asyncio
+async def test_secret_provider_crud(mock_client):
+    import json
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import (
+        create_secret_provider,
+        update_secret_provider,
+        delete_secret_provider,
+    )
+    with respx.mock:
+        create_route = respx.post("http://dockhand.test/api/secret-providers").mock(
+            return_value=Response(200, json={"id": 5, "name": "psono-prod", "type": "psono"})
+        )
+        update_route = respx.put("http://dockhand.test/api/secret-providers/5").mock(
+            return_value=Response(200, json={"id": 5, "name": "psono-updated", "type": "psono"})
+        )
+        delete_route = respx.delete("http://dockhand.test/api/secret-providers/5").mock(
+            return_value=Response(200, json={"success": True})
+        )
+
+        created = await create_secret_provider(
+            name="psono-prod",
+            type="psono",
+            config={"serverUrl": "https://psono.example.com"},
+            ctx=mock_ctx,
+        )
+        assert create_route.called
+        assert created["type"] == "psono"
+
+        updated = await update_secret_provider(
+            provider_id=5,
+            ctx=mock_ctx,
+            name="psono-updated",
+        )
+        assert update_route.called
+        payload = json.loads(update_route.calls.last.request.content)
+        assert payload == {"name": "psono-updated"}
+        assert updated["name"] == "psono-updated"
+
+        deleted = await delete_secret_provider(provider_id=5, ctx=mock_ctx)
+        assert delete_route.called
+        assert deleted["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_execute_batch_operation(mock_client):
+    import json
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import execute_batch_operation
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/batch?env=1").mock(
+            return_value=Response(
+                200,
+                json={"type": "complete", "summary": {"total": 2, "success": 2, "failed": 0}},
+            )
+        )
+        res = await execute_batch_operation(
+            operation="restart",
+            entity_type="stacks",
+            items=[{"id": "web", "name": "web"}, {"id": "db", "name": "db"}],
+            ctx=mock_ctx,
+            environment_id=1,
+        )
+        assert route.called
+        payload = json.loads(route.calls.last.request.content)
+        assert payload["entityType"] == "stacks"
+        assert payload["operation"] == "restart"
+        assert res["summary"]["success"] == 2

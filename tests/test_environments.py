@@ -107,3 +107,89 @@ async def test_update_environment_advanced(mock_client, mock_ctx):
         assert payload['tlsCa'] == '-----BEGIN CERTIFICATE-----...'
         assert payload['port'] == 2376
 
+
+@pytest.mark.asyncio
+async def test_environment_update_check_settings(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.environments import (
+        get_environment_update_check_settings,
+        update_environment_update_check_settings,
+    )
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/environments/1/update-check").mock(
+            return_value=Response(
+                200,
+                json={
+                    "settings": {
+                        "enabled": True,
+                        "cron": "0 4 * * *",
+                        "autoUpdate": False,
+                        "minimumReleaseAgeHours": 48,
+                        "minimumReleaseAgeOverride": True,
+                    }
+                },
+            )
+        )
+        post_route = respx.post("http://dockhand.test/api/environments/1/update-check").mock(
+            return_value=Response(200, json={"success": True})
+        )
+
+        res = await get_environment_update_check_settings(environment_id=1, ctx=mock_ctx)
+        assert get_route.called
+        assert res["settings"]["minimumReleaseAgeHours"] == 48
+
+        up = await update_environment_update_check_settings(
+            environment_id=1,
+            ctx=mock_ctx,
+            enabled=True,
+            minimum_release_age_hours=24,
+            minimum_release_age_override=True,
+        )
+        assert post_route.called
+        payload = json.loads(post_route.calls.last.request.content)
+        assert payload["minimumReleaseAgeHours"] == 24
+        assert payload["minimumReleaseAgeOverride"] is True
+        assert up["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_environment_reports(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.environments import (
+        get_environment_report,
+        get_environment_report_settings,
+        update_environment_report_settings,
+    )
+    with respx.mock:
+        rep_route = respx.get("http://dockhand.test/api/environments/report?format=json&env=1").mock(
+            return_value=Response(200, json={"environments": [{"id": 1, "name": "local"}]})
+        )
+        get_set_route = respx.get("http://dockhand.test/api/environments/1/report").mock(
+            return_value=Response(200, json={"settings": {"enabled": False, "format": "pdf"}})
+        )
+        post_set_route = respx.post("http://dockhand.test/api/environments/1/report").mock(
+            return_value=Response(200, json={"success": True})
+        )
+
+        rep = await get_environment_report(ctx=mock_ctx, environment_id=1, format="json")
+        assert rep_route.called
+        assert rep["environments"][0]["id"] == 1
+
+        settings = await get_environment_report_settings(environment_id=1, ctx=mock_ctx)
+        assert get_set_route.called
+        assert settings["settings"]["format"] == "pdf"
+
+        saved = await update_environment_report_settings(
+            environment_id=1,
+            ctx=mock_ctx,
+            enabled=True,
+            cron="0 6 1 * *",
+            format="csv",
+            notification_id=3,
+        )
+        assert post_set_route.called
+        payload = json.loads(post_set_route.calls.last.request.content)
+        assert payload["notificationId"] == 3
+        assert payload["format"] == "csv"
+        assert saved["success"] is True
+

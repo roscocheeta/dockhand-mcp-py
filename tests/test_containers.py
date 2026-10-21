@@ -188,3 +188,101 @@ async def test_chown_container_file(mock_client, mock_ctx):
         )
         assert route.called
         assert result['success'] is True
+
+
+@pytest.mark.asyncio
+async def test_list_containers_v1054_labels_and_health(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import list_containers
+    mock_data = [
+        {
+            "id": "8bf78fa4451123a39f73c62a9bab2516290e9a967cf807357f1092e68d87d108",
+            "name": "web-1",
+            "image": "nginx:latest",
+            "state": "running",
+            "status": "Up 2 hours (healthy)",
+            "health": "healthy",
+            "labels": {
+                "dockhand.tags": "prod,frontend",
+                "dockhand.name": "Production Web",
+            },
+        }
+    ]
+    with respx.mock:
+        route = respx.get("http://dockhand.test/api/containers?env=1").mock(
+            return_value=Response(200, json=mock_data)
+        )
+        result = await list_containers(environment_id=1, ctx=mock_ctx)
+        assert route.called
+        assert result[0]["Health"] == "healthy"
+        assert result[0]["Tags"] == "prod,frontend"
+        assert result[0]["DisplayName"] == "Production Web"
+
+
+@pytest.mark.asyncio
+async def test_update_container_repull_and_start(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.containers import update_container
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/containers/123/update?env=1").mock(
+            return_value=Response(200, json={"success": True, "id": "456", "warnings": []})
+        )
+        result = await update_container(
+            environment_id=1,
+            container_id="123",
+            ctx=mock_ctx,
+            image="nginx:latest",
+            name="web",
+            repull_image=True,
+            start_after_update=True,
+        )
+        assert route.called
+        payload = json.loads(route.calls.last.request.content)
+        assert payload["repullImage"] is True
+        assert payload["startAfterUpdate"] is True
+        assert payload["name"] == "web"
+        assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_container_compose_and_updates(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import (
+        get_container_compose,
+        check_container_updates,
+        get_pending_container_updates,
+    )
+    with respx.mock:
+        compose_route = respx.get("http://dockhand.test/api/containers/123/compose?env=1").mock(
+            return_value=Response(200, json={"compose": "services:\n  web:\n    image: nginx\n", "serviceName": "web"})
+        )
+        check_route = respx.post("http://dockhand.test/api/containers/check-updates?env=1").mock(
+            return_value=Response(
+                200,
+                text='data: {"total": 2, "updatesFound": 1, "results": []}\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+        pending_route = respx.get("http://dockhand.test/api/containers/pending-updates?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "environmentId": 1,
+                    "minimumReleaseAgeHours": 24,
+                    "pendingUpdates": [
+                        {"containerId": "123", "hasImageUpdate": False, "pinnedToDigest": True}
+                    ],
+                },
+            )
+        )
+
+        comp = await get_container_compose(environment_id=1, container_id="123", ctx=mock_ctx)
+        assert compose_route.called
+        assert comp["serviceName"] == "web"
+
+        chk = await check_container_updates(environment_id=1, ctx=mock_ctx)
+        assert check_route.called
+        assert chk["success"] is True
+
+        pend = await get_pending_container_updates(environment_id=1, ctx=mock_ctx)
+        assert pending_route.called
+        assert pend["minimumReleaseAgeHours"] == 24
+        assert pend["pendingUpdates"][0]["pinnedToDigest"] is True
