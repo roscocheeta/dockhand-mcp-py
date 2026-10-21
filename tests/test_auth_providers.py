@@ -32,3 +32,24 @@ async def test_list_oidc_providers(mock_client, mock_ctx):
         ldap_res = await list_ldap_providers(mock_ctx)
         assert ldap_route.called
         assert ldap_res == [{"id": 2, "name": "Corp LDAP", "bindPassword": "***REDACTED***"}]
+
+
+@pytest.mark.asyncio
+async def test_test_oidc_and_ldap_providers(mock_client, mock_ctx):
+    from dockhand_mcp.tools.auth_providers import test_oidc_provider, test_ldap_provider
+    with respx.mock:
+        oidc_test = respx.post("http://dockhand.test/api/auth/oidc/providers/1/test").mock(
+            return_value=Response(200, json={"valid": True})
+        )
+        ldap_test = respx.post("http://dockhand.test/api/auth/ldap/providers/2/test").mock(
+            return_value=Response(200, json={"valid": True})
+        )
+
+        r1 = await test_oidc_provider(1, mock_ctx)
+        assert oidc_test.called
+        assert r1["valid"] is True
+
+        r2 = await test_ldap_provider(2, mock_ctx)
+        assert ldap_test.called
+        assert r2["valid"] is True
+

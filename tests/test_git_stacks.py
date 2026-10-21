@@ -179,4 +179,60 @@ async def test_create_and_update_git_credential_redact_secrets(mock_client):
         assert updated["password"] == "***REDACTED***"
 
 
+@pytest.mark.asyncio
+async def test_git_stack_list_deploy_sync_delete_and_cred_delete(mock_client):
+    from dockhand_mcp.tools.git_stacks import (
+        list_git_stacks,
+        deploy_git_stack,
+        sync_git_stack,
+        delete_git_stack,
+    )
+    from dockhand_mcp.tools.git_credentials import delete_git_credential
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        list_route = respx.get("http://dockhand.test/api/git/stacks").mock(
+            return_value=Response(
+                200,
+                json=[{"id": 1, "name": "git-app", "repositoryId": 5, "branch": "main", "composePath": "compose.yaml"}],
+            )
+        )
+        deploy_route = respx.post("http://dockhand.test/api/git/stacks/1/deploy-stream").mock(
+            return_value=Response(
+                200,
+                text='data: {"output": "Deployed", "success": true}\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+        sync_route = respx.post("http://dockhand.test/api/git/stacks/1/sync").mock(
+            return_value=Response(200, json={"synced": True})
+        )
+        del_route = respx.delete("http://dockhand.test/api/git/stacks/1?force=true").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        cred_del_route = respx.delete("http://dockhand.test/api/git/credentials/9").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+
+        stacks = await list_git_stacks(ctx=mock_ctx)
+        assert list_route.called
+        assert stacks[0]["Name"] == "git-app"
+
+        dep = await deploy_git_stack(stack_id=1, ctx=mock_ctx)
+        assert deploy_route.called
+        assert dep["success"] is True
+
+        syn = await sync_git_stack(stack_id=1, ctx=mock_ctx)
+        assert sync_route.called
+        assert syn["synced"] is True
+
+        deleted = await delete_git_stack(stack_id=1, ctx=mock_ctx, force=True)
+        assert del_route.called
+        assert deleted["deleted"] is True
+
+        cred_del = await delete_git_credential(credential_id=9, ctx=mock_ctx)
+        assert cred_del_route.called
+        assert cred_del["deleted"] is True
+
+
+
 

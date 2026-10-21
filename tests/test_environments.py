@@ -193,3 +193,63 @@ async def test_environment_reports(mock_client, mock_ctx):
         assert payload["format"] == "csv"
         assert saved["success"] is True
 
+
+@pytest.mark.asyncio
+async def test_delete_and_test_environment_and_strip_creds(mock_client, mock_ctx):
+    from dockhand_mcp.tools.environments import (
+        create_environment,
+        update_environment,
+        delete_environment,
+        test_environment,
+    )
+    with respx.mock:
+        respx.post("http://dockhand.test/api/environments").mock(
+            return_value=Response(200, json={"id": 3, "tlsKey": "priv_key", "hawserToken": "tok"})
+        )
+        respx.put("http://dockhand.test/api/environments/3").mock(
+            return_value=Response(200, json={"id": 3, "tlsKey": "priv_key", "hawserToken": "tok"})
+        )
+        respx.delete("http://dockhand.test/api/environments/3").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        respx.post("http://dockhand.test/api/environments/3/test").mock(
+            return_value=Response(200, json={"reachable": True})
+        )
+
+        created = await create_environment(
+            name="direct-tls",
+            connection_type="direct",
+            ctx=mock_ctx,
+            host="10.0.0.5",
+            port=2376,
+            tls_ca="ca",
+            tls_cert="cert",
+            tls_key="priv_key",
+        )
+        assert "tlsKey" not in created
+        assert "hawserToken" not in created
+
+        updated = await update_environment(
+            environment_id=3,
+            ctx=mock_ctx,
+            name="direct-tls-2",
+            connection_type="direct",
+            host="10.0.0.6",
+            protocol="https",
+            socket_path="/var/run/docker.sock",
+            tls_cert="cert",
+            tls_key="priv_key",
+            tls_skip_verify=False,
+            hawser_token="tok",
+            icon="server",
+            labels=["prod"],
+            collect_activity=True,
+            collect_metrics=True,
+        )
+        assert "tlsKey" not in updated
+        assert "hawserToken" not in updated
+
+        assert (await test_environment(3, mock_ctx))["reachable"] is True
+        assert (await delete_environment(3, mock_ctx))["deleted"] is True
+
+

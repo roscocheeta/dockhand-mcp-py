@@ -65,3 +65,38 @@ async def test_create_network_full(mock_client):
         assert payload["ipam"] == {"driver": "default", "config": [{"subnet": "10.0.0.0/24"}]}
         assert payload["internal"] is True
         assert payload["attachable"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_get_inspect_delete_network(mock_client):
+    from dockhand_mcp.tools.networks import list_networks, get_network, inspect_network, delete_network
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        list_route = respx.get("http://dockhand.test/api/networks?env=1").mock(
+            return_value=Response(
+                200,
+                json=[{"Id": "abcdef1234567890", "Name": "bridge", "Driver": "bridge", "Scope": "local", "Extra": "val"}],
+            )
+        )
+        get_route = respx.get("http://dockhand.test/api/networks/net1?env=1").mock(
+            return_value=Response(200, json={"Id": "net1", "Name": "bridge", "NullField": None})
+        )
+        del_route = respx.delete("http://dockhand.test/api/networks/net1?env=1").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+
+        nets = await list_networks(environment_id=1, ctx=mock_ctx)
+        assert list_route.called
+        assert nets[0] == {"Id": "abcdef123456", "Name": "bridge", "Driver": "bridge", "Scope": "local"}
+
+        net = await get_network(environment_id=1, network_id="net1", ctx=mock_ctx)
+        assert get_route.called
+        assert net == {"Id": "net1", "Name": "bridge"}
+
+        insp = await inspect_network(environment_id=1, network_id="net1", ctx=mock_ctx)
+        assert insp == {"Id": "net1", "Name": "bridge"}
+
+        deleted = await delete_network(environment_id=1, network_id="net1", ctx=mock_ctx)
+        assert del_route.called
+        assert deleted["deleted"] is True
+

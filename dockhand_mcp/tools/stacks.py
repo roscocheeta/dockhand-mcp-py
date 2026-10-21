@@ -86,12 +86,21 @@ async def create_stack(
     return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
 
 async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the docker-compose.yml content for a stack."""
+    """Get the docker-compose.yml content for a stack. Inline secret environment variables are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/compose", 
         params={"env": environment_id}
     )
+    if isinstance(data, dict):
+        data = dict(data)
+        for key in ("content", "compose"):
+            if isinstance(data.get(key), str):
+                data[key] = redact_env_text(data[key])
+        return data
+    if isinstance(data, str):
+        return redact_env_text(data)
+    return data
 
 async def update_stack_compose(
     environment_id: int, 
@@ -155,13 +164,20 @@ async def update_stack_env_raw(
     content: str, 
     ctx: Context
 ) -> dict:
-    """Update the full .env file content for a stack. Empty string deletes it."""
+    """
+    Update the full .env file content for a stack. Empty string deletes it.
+    ⚠️ SECURITY WARNING: Passing secret values in content exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put(
+    data = await client.put(
         f"/api/stacks/{encode_path(name)}/env/raw", 
         json={"content": content}, 
         params={"env": environment_id}
     )
+    if isinstance(data, dict) and isinstance(data.get("content"), str):
+        data = dict(data)
+        data["content"] = redact_env_text(data["content"])
+    return redact_sensitive_dict(data)
 
 async def deploy_stack(
     environment_id: int, 
@@ -256,13 +272,17 @@ async def update_stack_env(
     env_vars: list[dict[str, Any]],
     ctx: Context,
 ) -> dict:
-    """Update stack environment variables with structured merge/replace."""
+    """
+    Update stack environment variables with structured merge/replace.
+    ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put(
+    data = await client.put(
         f"/api/stacks/{encode_path(name)}/env",
         json={"envVars": env_vars},
         params={"env": environment_id}
     )
+    return redact_sensitive_dict(data)
 
 async def remove_stack_env_vars(
     environment_id: int,

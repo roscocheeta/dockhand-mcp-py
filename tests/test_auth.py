@@ -253,4 +253,27 @@ class TestBearerTokenAuth:
         assert cfg["verify_ssl"] is False
         assert "SSL certificate verification is DISABLED" in caplog.text
 
+    async def test_server_lifespan_and_error_formatting(self, monkeypatch):
+        """Verify server lifespan context manager and _format_error helper."""
+        from dockhand_mcp.server import lifespan, mcp, _format_error, _get_config
+        monkeypatch.delenv("DOCKHAND_URL", raising=False)
+        monkeypatch.delenv("DOCKHAND_API_TOKEN", raising=False)
+        monkeypatch.delenv("DOCKHAND_USERNAME", raising=False)
+        monkeypatch.delenv("DOCKHAND_PASSWORD", raising=False)
+        with pytest.raises(SystemExit):
+            _get_config()
+
+        monkeypatch.setenv("DOCKHAND_URL", "https://dockhand.example.com")
+        monkeypatch.setenv("DOCKHAND_API_TOKEN", "dh_tok_123")
+        async with lifespan(mcp) as ctx_dict:
+            assert "dockhand" in ctx_dict
+            client = ctx_dict["dockhand"]
+            assert not client._client.is_closed
+        assert client._client.is_closed
+
+        assert "HTTP 404" in _format_error(DockhandAPIError(404, "missing", "GET", "/api/x"))
+        assert "Authentication Error" in _format_error(DockhandAuthError("bad creds"))
+        assert "Unexpected error" in _format_error(RuntimeError("boom"))
+
+
 

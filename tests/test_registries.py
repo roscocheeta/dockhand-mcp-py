@@ -61,3 +61,56 @@ async def test_update_registry_strips_passwords(mock_client):
         assert "Password" not in result
         assert "ghp_super_secret_token" not in str(result)
 
+
+@pytest.mark.asyncio
+async def test_get_create_delete_test_registry_strip_passwords(mock_client):
+    from dockhand_mcp.tools.registries import get_registry, create_registry, delete_registry, test_registry
+    mock_ctx = MockContext(mock_client)
+    mock_resp = {
+        "id": 2,
+        "name": "GitLab",
+        "url": "https://registry.gitlab.com",
+        "username": "gluser",
+        "password": "glpat_secret_password",
+        "type": "gitlab",
+    }
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/registries/2?env=1").mock(
+            return_value=Response(200, json=mock_resp)
+        )
+        create_route = respx.post("http://dockhand.test/api/registries?env=1").mock(
+            return_value=Response(200, json=mock_resp)
+        )
+        test_route = respx.post("http://dockhand.test/api/registries/2/test?env=1").mock(
+            return_value=Response(200, json={"success": True})
+        )
+        del_route = respx.delete("http://dockhand.test/api/registries/2?env=1").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+
+        fetched = await get_registry(environment_id=1, registry_id=2, ctx=mock_ctx)
+        assert get_route.called
+        assert fetched["Name"] == "GitLab"
+        assert "glpat_secret_password" not in str(fetched)
+
+        created = await create_registry(
+            environment_id=1,
+            name="GitLab",
+            registry_type="gitlab",
+            url="https://registry.gitlab.com",
+            ctx=mock_ctx,
+            username="gluser",
+            password="glpat_secret_password",
+        )
+        assert create_route.called
+        assert "glpat_secret_password" not in str(created)
+
+        tested = await test_registry(environment_id=1, registry_id=2, ctx=mock_ctx)
+        assert test_route.called
+        assert tested["success"] is True
+
+        deleted = await delete_registry(environment_id=1, registry_id=2, ctx=mock_ctx)
+        assert del_route.called
+        assert deleted["deleted"] is True
+
+
