@@ -9,13 +9,26 @@ from dockhand_mcp.utils import encode_path
 
 def _compact_stack(s: dict) -> dict:
     """Keep only essential fields for token efficiency."""
-    return {
+    res: dict[str, Any] = {
         "Id": s.get("Id") or s.get("id"),
         "Name": s.get("Name") or s.get("name"),
         "Status": s.get("Status") or s.get("status"),
         "EnvironmentId": s.get("EnvironmentId") or s.get("environmentId"),
-        "Type": s.get("Type") or s.get("type"),
+        "Type": s.get("Type") or s.get("type") or s.get("sourceType"),
     }
+    if "health" in s:
+        res["Health"] = s["health"]
+    if "labelTags" in s:
+        res["LabelTags"] = s["labelTags"]
+    if "updateCount" in s:
+        res["UpdateCount"] = s["updateCount"]
+    if "newerVersionCount" in s:
+        res["NewerVersionCount"] = s["newerVersionCount"]
+    if "coolingDownCount" in s:
+        res["CoolingDownCount"] = s["coolingDownCount"]
+    if "pinnedDigestCount" in s:
+        res["PinnedDigestCount"] = s["pinnedDigestCount"]
+    return res
 
 
 async def list_stacks(environment_id: int, ctx: Context) -> list:
@@ -85,11 +98,20 @@ async def update_stack_compose(
     name: str, 
     content: str, 
     ctx: Context,
-    restart: bool = False
+    restart: bool = False,
+    pull: bool | None = None,
+    build: bool | None = None,
+    force_recreate: bool | None = None,
 ) -> dict:
     """Update the compose file content for a stack. Optionally redeploy after update."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {"content": content}
+    body: dict[str, Any] = {"content": content}
+    if pull is not None:
+        body["pull"] = pull
+    if build is not None:
+        body["build"] = build
+    if force_recreate is not None:
+        body["forceRecreate"] = force_recreate
     if restart:
         body["restart"] = True
         return await client.put_sse(
@@ -170,12 +192,20 @@ async def stop_stack(environment_id: int, name: str, ctx: Context) -> dict:
         params={"env": environment_id}
     )
 
-async def restart_stack(environment_id: int, name: str, ctx: Context) -> dict:
-    """Restart a stack."""
+async def restart_stack(
+    environment_id: int,
+    name: str,
+    ctx: Context,
+    mode: str | None = None,
+) -> dict:
+    """Restart a stack (mode='restart' | 'ordered' | 'recreate')."""
     client = ctx.request_context.lifespan_context["dockhand"]
+    params: dict[str, Any] = {"env": environment_id}
+    if mode is not None:
+        params["mode"] = mode
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/restart", 
-        params={"env": environment_id}
+        params=params
     )
 
 async def down_stack(
@@ -318,6 +348,16 @@ async def get_stack_deploy_log(environment_id: int, name: str, run_id: int, ctx:
         params={"env": environment_id}
     )
 
+async def get_stack_stats(environment_id: int, ctx: Context) -> list:
+    """Return a CPU/memory/network/block-IO stats snapshot per compose stack in an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/stack-stats", params={"env": environment_id})
+
+async def get_stack_path_hints(environment_id: int, name: str, ctx: Context) -> dict:
+    """Return path hints (working directory and config file paths) extracted from a stack's Docker container labels."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/stacks/path-hints", params={"name": name, "env": environment_id})
+
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
     mcp.add_tool(create_stack)
@@ -341,4 +381,6 @@ def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(delete_stack)
     mcp.add_tool(get_stack_deploy_history)
     mcp.add_tool(get_stack_deploy_log)
+    mcp.add_tool(get_stack_stats)
+    mcp.add_tool(get_stack_path_hints)
 

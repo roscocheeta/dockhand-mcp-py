@@ -112,6 +112,16 @@ async def get_user(user_id: int, ctx: Context) -> dict:
     user = await client.get(f"/api/users/{encode_path(str(user_id))}")
     return _compact_user(user) if isinstance(user, dict) else user
 
+async def list_passkeys(ctx: Context) -> dict:
+    """List the signed-in user's registered passkeys (names and metadata only)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/profile/passkeys")
+
+async def delete_passkey(passkey_id: int, ctx: Context) -> dict:
+    """Remove one of the signed-in user's passkeys."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.delete(f"/api/profile/passkeys/{encode_path(str(passkey_id))}")
+
 def register_user_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_users)
     mcp.add_tool(get_user)
@@ -121,3 +131,5 @@ def register_user_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_tokens)
     mcp.add_tool(create_token)
     mcp.add_tool(delete_token)
+    mcp.add_tool(list_passkeys)
+    mcp.add_tool(delete_passkey)

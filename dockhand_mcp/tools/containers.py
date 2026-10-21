@@ -10,7 +10,7 @@ from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect
 
 def _compact_container(c: dict) -> dict:
     """Keep only essential fields for token efficiency."""
-    return {
+    res: dict[str, Any] = {
         "Id": truncate_id(c.get("Id") or c.get("id")),
         "Name": c.get("Name") or c.get("name") or (c.get("Names", [""])[0] if c.get("Names") else ""),
         "Image": c.get("Image") or c.get("image"),
@@ -18,6 +18,16 @@ def _compact_container(c: dict) -> dict:
         "Status": c.get("Status") or c.get("status"),
         "Ports": c.get("Ports") or c.get("ports") or []
     }
+    health = c.get("Health") or c.get("health")
+    if health:
+        res["Health"] = health
+    labels = c.get("Labels") or c.get("labels")
+    if isinstance(labels, dict):
+        if "dockhand.tags" in labels:
+            res["Tags"] = labels["dockhand.tags"]
+        if "dockhand.name" in labels:
+            res["DisplayName"] = labels["dockhand.name"]
+    return res
 
 
 async def list_containers(environment_id: int, ctx: Context) -> list:
@@ -198,16 +208,21 @@ async def update_container(
     container_id: str,
     ctx: Context,
     image: str | None = None,
+    name: str | None = None,
     cmd: list[str] | None = None,
     env: list[str] | None = None,
     restart_policy: str | None = None,
     network_mode: str | None = None,
+    repull_image: bool | None = None,
+    start_after_update: bool | None = None,
 ) -> dict:
     """Update a container (Note: Dockhand will recreate it)."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {}
+    body: dict[str, Any] = {}
     if image:
         body["image"] = image
+    if name:
+        body["name"] = name
     if cmd:
         body["cmd"] = cmd
     if env:
@@ -216,6 +231,10 @@ async def update_container(
         body["restartPolicy"] = restart_policy
     if network_mode:
         body["networkMode"] = network_mode
+    if repull_image is not None:
+        body["repullImage"] = repull_image
+    if start_after_update is not None:
+        body["startAfterUpdate"] = start_after_update
         
     return await client.post(
         f"/api/containers/{encode_path(container_id)}/update", 
@@ -376,6 +395,30 @@ async def rename_container_file(
         params={"env": environment_id},
     )
 
+async def get_container_compose(environment_id: int, container_id: str, ctx: Context) -> dict:
+    """Generate a docker-compose service definition from a running container's inspect."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/containers/{encode_path(container_id)}/compose",
+        params={"env": environment_id},
+    )
+
+async def check_container_updates(environment_id: int, ctx: Context) -> dict:
+    """Trigger a fresh image-update check across all containers in an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post_sse(
+        "/api/containers/check-updates",
+        params={"env": environment_id},
+    )
+
+async def get_pending_container_updates(environment_id: int, ctx: Context) -> dict:
+    """List the containers in an environment that have a pending image update, newer version, cooldown, or moved pinned digest."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        "/api/containers/pending-updates",
+        params={"env": environment_id},
+    )
+
 def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_containers)
     mcp.add_tool(get_container)
@@ -402,3 +445,6 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(update_container)
     mcp.add_tool(exec_container)
     mcp.add_tool(run_container_exec)
+    mcp.add_tool(get_container_compose)
+    mcp.add_tool(check_container_updates)
+    mcp.add_tool(get_pending_container_updates)

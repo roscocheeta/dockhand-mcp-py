@@ -54,3 +54,11 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 - [x] **Tag Catalog Management:** Added tools to list, create, update, and delete global catalog tags (colors and icons) via /api/tags.
 - [x] **UI Custom Ordering:** Added tools to read and write custom sort orders for Environments and Tags via /api/preferences/*-order.
 
+### Dockhand v1.0.52 - v1.0.54 Enhancements
+- [x] **Per-Stack Resource Totals & Health:** Added `get_stack_stats` (`/api/stack-stats`), `get_stack_path_hints` (`/api/stacks/path-hints`), and enriched `list_stacks` with stack `Health`, `LabelTags`, and update/cooldown/pinned-digest counters.
+- [x] **Stack Redeploy & Tagging:** Enhanced `restart_stack` with `mode` (`restart` | `ordered` | `recreate`), `update_stack_compose` with `pull` / `build` / `force_recreate` options, and added `get_stack_tags` / `set_stack_tags`.
+- [x] **Minimum Image Release Age:** Added global `get_minimum_release_age` / `set_minimum_release_age` (`/api/settings/minimum-release-age`) and per-environment update check & cooldown settings (`get_environment_update_check_settings`, `update_environment_update_check_settings`).
+- [x] **Container Updates & Compose Export:** Added `get_container_compose`, `check_container_updates`, `get_pending_container_updates` (exposing moved pinned digests and release age cooldowns), and updated `list_containers` to surface `dockhand.name`, `dockhand.tags`, and `health`.
+- [x] **Secret Providers (Psono & CRUD):** Added `create_secret_provider`, `update_secret_provider`, and `delete_secret_provider` supporting Psono and other external secret providers.
+- [x] **Batch Operations, Passkeys & Environment Reports:** Added `execute_batch_operation` (`/api/batch`), `list_passkeys` / `delete_passkey` (`/api/profile/passkeys`), and environment state report tools (`get_environment_report`, `get_environment_report_settings`, `update_environment_report_settings`).
+

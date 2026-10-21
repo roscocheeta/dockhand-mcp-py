@@ -149,6 +149,76 @@ async def test_environment(environment_id: int, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/environments/{encode_path(str(environment_id))}/test")
 
+async def get_environment_update_check_settings(environment_id: int, ctx: Context) -> dict:
+    """Get the automatic container-image update-check schedule and minimum release age settings for an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(f"/api/environments/{encode_path(str(environment_id))}/update-check")
+
+async def update_environment_update_check_settings(
+    environment_id: int,
+    ctx: Context,
+    enabled: bool | None = None,
+    cron: str | None = None,
+    auto_update: bool | None = None,
+    vulnerability_criteria: str | None = None,
+    minimum_release_age_hours: int | None = None,
+    minimum_release_age_override: bool | None = None,
+) -> dict:
+    """Save the automatic image update-check schedule and minimum release age settings for an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body: dict = {}
+    if enabled is not None:
+        body["enabled"] = enabled
+    if cron is not None:
+        body["cron"] = cron
+    if auto_update is not None:
+        body["autoUpdate"] = auto_update
+    if vulnerability_criteria is not None:
+        body["vulnerabilityCriteria"] = vulnerability_criteria
+    if minimum_release_age_hours is not None:
+        body["minimumReleaseAgeHours"] = minimum_release_age_hours
+    if minimum_release_age_override is not None:
+        body["minimumReleaseAgeOverride"] = minimum_release_age_override
+    return await client.post(f"/api/environments/{encode_path(str(environment_id))}/update-check", json=body)
+
+async def get_environment_report(
+    ctx: Context,
+    environment_id: int | None = None,
+    format: str = "json",
+) -> dict | str:
+    """Export an environment state report (inventory, vulnerability counts, scan coverage) as json or csv."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    params: dict = {"format": format}
+    if environment_id is not None:
+        params["env"] = environment_id
+    return await client.get("/api/environments/report", params=params)
+
+async def get_environment_report_settings(environment_id: int, ctx: Context) -> dict:
+    """Get the scheduled state report configuration for an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(f"/api/environments/{encode_path(str(environment_id))}/report")
+
+async def update_environment_report_settings(
+    environment_id: int,
+    ctx: Context,
+    enabled: bool | None = None,
+    cron: str | None = None,
+    format: str | None = None,
+    notification_id: int | None = None,
+) -> dict:
+    """Save the scheduled state report configuration for an environment."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body: dict = {}
+    if enabled is not None:
+        body["enabled"] = enabled
+    if cron is not None:
+        body["cron"] = cron
+    if format is not None:
+        body["format"] = format
+    if notification_id is not None:
+        body["notificationId"] = notification_id
+    return await client.post(f"/api/environments/{encode_path(str(environment_id))}/report", json=body)
+
 def register_environment_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_environments)
     mcp.add_tool(get_environment)
@@ -156,3 +226,8 @@ def register_environment_tools(mcp: FastMCP) -> None:
     mcp.add_tool(update_environment)
     mcp.add_tool(delete_environment)
     mcp.add_tool(test_environment)
+    mcp.add_tool(get_environment_update_check_settings)
+    mcp.add_tool(update_environment_update_check_settings)
+    mcp.add_tool(get_environment_report)
+    mcp.add_tool(get_environment_report_settings)
+    mcp.add_tool(update_environment_report_settings)

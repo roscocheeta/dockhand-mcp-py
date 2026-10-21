@@ -1,4 +1,5 @@
 from mcp.server.fastmcp import Context
+from dockhand_mcp.utils import encode_path
 
 async def list_tags(ctx: Context = None) -> list:
     """List all tags in the global catalog."""
@@ -31,8 +32,26 @@ async def delete_tag(tag_id: int, ctx: Context = None) -> dict:
     client = ctx.request_context.lifespan_context['dockhand']
     return await client.delete(f'/api/tags/{tag_id}')
 
+async def get_stack_tags(environment_id: int, name: str, ctx: Context = None) -> list[int]:
+    """Get the tag IDs assigned to a stack."""
+    client = ctx.request_context.lifespan_context['dockhand']
+    data = await client.get(f'/api/stacks/{encode_path(name)}/tags', params={'env': environment_id})
+    return data.get('tagIds', [])
+
+async def set_stack_tags(environment_id: int, name: str, tag_ids: list[int], ctx: Context = None) -> list[int]:
+    """Replace the tag IDs assigned to a stack."""
+    client = ctx.request_context.lifespan_context['dockhand']
+    data = await client.put(
+        f'/api/stacks/{encode_path(name)}/tags',
+        json={'tagIds': tag_ids},
+        params={'env': environment_id}
+    )
+    return data.get('tagIds', [])
+
 def register_tag_tools(mcp) -> None:
     mcp.add_tool(list_tags)
     mcp.add_tool(create_tag)
     mcp.add_tool(update_tag)
     mcp.add_tool(delete_tag)
+    mcp.add_tool(get_stack_tags)
+    mcp.add_tool(set_stack_tags)
