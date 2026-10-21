@@ -176,10 +176,26 @@ async def test_secret_provider_crud(mock_client):
     )
     with respx.mock:
         create_route = respx.post("http://dockhand.test/api/secret-providers").mock(
-            return_value=Response(200, json={"id": 5, "name": "psono-prod", "type": "psono"})
+            return_value=Response(
+                200,
+                json={
+                    "id": 5,
+                    "name": "psono-prod",
+                    "type": "psono",
+                    "config": {"serverUrl": "https://psono.example.com", "secretKey": "psono_secret_abc"},
+                },
+            )
         )
         update_route = respx.put("http://dockhand.test/api/secret-providers/5").mock(
-            return_value=Response(200, json={"id": 5, "name": "psono-updated", "type": "psono"})
+            return_value=Response(
+                200,
+                json={
+                    "id": 5,
+                    "name": "psono-updated",
+                    "type": "psono",
+                    "config": {"apiKeyId": "key_id_1", "apiKeySecret": "raw_api_secret"},
+                },
+            )
         )
         delete_route = respx.delete("http://dockhand.test/api/secret-providers/5").mock(
             return_value=Response(200, json={"success": True})
@@ -193,6 +209,8 @@ async def test_secret_provider_crud(mock_client):
         )
         assert create_route.called
         assert created["type"] == "psono"
+        assert created["config"]["serverUrl"] == "https://psono.example.com"
+        assert created["config"]["secretKey"] == "***REDACTED***"
 
         updated = await update_secret_provider(
             provider_id=5,
@@ -203,6 +221,7 @@ async def test_secret_provider_crud(mock_client):
         payload = json.loads(update_route.calls.last.request.content)
         assert payload == {"name": "psono-updated"}
         assert updated["name"] == "psono-updated"
+        assert updated["config"]["apiKeySecret"] == "***REDACTED***"
 
         deleted = await delete_secret_provider(provider_id=5, ctx=mock_ctx)
         assert delete_route.called
@@ -233,3 +252,159 @@ async def test_execute_batch_operation(mock_client):
         assert payload["entityType"] == "stacks"
         assert payload["operation"] == "restart"
         assert res["summary"]["success"] == 2
+
+
+@pytest.mark.asyncio
+async def test_notifications_redact_secrets_and_urls(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import list_notifications, get_notification
+    with respx.mock:
+        list_route = respx.get("http://dockhand.test/api/notifications").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {
+                        "id": 1,
+                        "name": "Discord Alert",
+                        "type": "discord",
+                        "config": {
+                            "webhookUrl": "https://discord.com/api/webhooks/111222/secret_webhook_tok",
+                            "smtpPassword": "smtp_pw_value",
+                        },
+                    }
+                ],
+            )
+        )
+        get_route = respx.get("http://dockhand.test/api/notifications/1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 1,
+                    "name": "Apprise Channel",
+                    "config": {"urls": ["discord://111222/secret_webhook_tok"]},
+                },
+            )
+        )
+
+        items = await list_notifications(ctx=mock_ctx)
+        assert list_route.called
+        assert items[0]["config"]["webhookUrl"] == "https://discord.com/api/webhooks/111222/***REDACTED***"
+        assert items[0]["config"]["smtpPassword"] == "***REDACTED***"
+
+        single = await get_notification(notification_id=1, ctx=mock_ctx)
+        assert get_route.called
+        assert single["config"]["urls"] == ["discord://***REDACTED***"]
+
+
+@pytest.mark.asyncio
+async def test_aligned_v1054_misc_routes(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import (
+        list_secret_providers,
+        get_secret_provider,
+        get_preferences,
+        get_sidebar_preferences,
+        get_auto_update,
+    )
+    with respx.mock:
+        sp_list_route = respx.get("http://dockhand.test/api/secret-providers").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "vault", "config": {"token": "v_tok"}}])
+        )
+        sp_get_route = respx.get("http://dockhand.test/api/secret-providers/1").mock(
+            return_value=Response(200, json={"id": 1, "name": "vault", "config": {"token": "v_tok"}})
+        )
+        prefs_route = respx.get("http://dockhand.test/api/profile/preferences").mock(
+            return_value=Response(200, json={"defaultEnv": 1})
+        )
+        sidebar_route = respx.get("http://dockhand.test/api/preferences/sidebar").mock(
+            return_value=Response(200, json={"collapsed": False})
+        )
+        au_route = respx.get("http://dockhand.test/api/auto-update/web?env=1").mock(
+            return_value=Response(200, json={"enabled": True})
+        )
+
+        sps = await list_secret_providers(ctx=mock_ctx)
+        assert sp_list_route.called
+        assert sps[0]["config"]["token"] == "***REDACTED***"
+
+        sp = await get_secret_provider(provider_id=1, ctx=mock_ctx)
+        assert sp_get_route.called
+        assert sp["config"]["token"] == "***REDACTED***"
+
+        prefs = await get_preferences(ctx=mock_ctx)
+        assert prefs_route.called
+        assert prefs["defaultEnv"] == 1
+
+        sb = await get_sidebar_preferences(ctx=mock_ctx)
+        assert sidebar_route.called
+        assert sb["collapsed"] is False
+
+        au = await get_auto_update(environment_id=1, container_id="web", ctx=mock_ctx)
+        assert au_route.called
+        assert au["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_remaining_misc_tools(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import (
+        create_notification,
+        list_schedules,
+        list_templates,
+        list_labels,
+        set_preferences,
+        list_config_sets,
+        set_auto_update,
+        get_theme_settings,
+        update_theme_settings,
+        set_grid_preferences,
+    )
+    with respx.mock:
+        respx.post("http://dockhand.test/api/notifications").mock(
+            return_value=Response(
+                200,
+                json={"id": 2, "url": "https://hooks.slack.com/services/T1/B1/sec_tok"},
+            )
+        )
+        respx.get("http://dockhand.test/api/schedules").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "Daily"}])
+        )
+        respx.get("http://dockhand.test/api/templates").mock(
+            return_value=Response(200, json=[{"name": "wordpress"}])
+        )
+        respx.get("http://dockhand.test/api/labels?env=1").mock(
+            return_value=Response(200, json=["env=prod"])
+        )
+        respx.put("http://dockhand.test/api/profile/preferences").mock(
+            return_value=Response(200, json={"saved": True})
+        )
+        respx.get("http://dockhand.test/api/config-sets").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "common"}])
+        )
+        respx.put("http://dockhand.test/api/auto-update/web?env=1").mock(
+            return_value=Response(200, json={"enabled": False})
+        )
+        respx.get("http://dockhand.test/api/users/preferences/theme").mock(
+            return_value=Response(200, json={"theme": "dark"})
+        )
+        respx.put("http://dockhand.test/api/users/preferences/theme").mock(
+            return_value=Response(200, json={"theme": "light"})
+        )
+        respx.put("http://dockhand.test/api/preferences/grid").mock(
+            return_value=Response(200, json={"columns": 4})
+        )
+
+        notif = await create_notification("Slack", "https://hooks.slack.com/services/T1/B1/sec_tok", mock_ctx)
+        assert notif["url"] == "https://hooks.slack.com/services/T1/B1/***REDACTED***"
+        assert (await list_schedules(mock_ctx))[0]["name"] == "Daily"
+        assert (await list_templates(mock_ctx))[0]["name"] == "wordpress"
+        assert (await list_labels(1, mock_ctx)) == ["env=prod"]
+        assert (await set_preferences({"defaultEnv": 1}, mock_ctx))["saved"] is True
+        assert (await list_config_sets(mock_ctx))[0]["name"] == "common"
+        assert (await set_auto_update(1, "web", False, mock_ctx))["enabled"] is False
+        assert (await get_theme_settings(mock_ctx))["theme"] == "dark"
+        assert (await update_theme_settings("light", mock_ctx))["theme"] == "light"
+        assert (await set_grid_preferences({"columns": 4}, mock_ctx))["columns"] == 4
+
+
+

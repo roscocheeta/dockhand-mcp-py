@@ -3,7 +3,7 @@ Git Credential management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
 async def list_git_credentials(ctx: Context) -> list:
     """List Git credentials (passwords stripped for security)."""
@@ -19,24 +19,32 @@ async def list_git_credentials(ctx: Context) -> list:
     return creds
 
 async def create_git_credential(name: str, username: str, ctx: Context, password: str | None = None, private_key: str | None = None) -> dict:
-    """Create a new Git credential."""
+    """
+    Create a new Git credential.
+    ⚠️ SECURITY WARNING: Passing password or private_key exposes secrets in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"name": name, "username": username}
     if password is not None:
         body["password"] = password
     if private_key is not None:
         body["privateKey"] = private_key
-    return await client.post("/api/git/credentials", json=body)
+    data = await client.post("/api/git/credentials", json=body)
+    return redact_sensitive_dict(data)
 
 async def update_git_credential(credential_id: int, ctx: Context, name: str | None = None, username: str | None = None, password: str | None = None, private_key: str | None = None) -> dict:
-    """Update an existing Git credential."""
+    """
+    Update an existing Git credential.
+    ⚠️ SECURITY WARNING: Passing password or private_key exposes secrets in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if name is not None: body["name"] = name
     if username is not None: body["username"] = username
     if password is not None: body["password"] = password
     if private_key is not None: body["privateKey"] = private_key
-    return await client.put(f"/api/git/credentials/{encode_path(str(credential_id))}", json=body)
+    data = await client.put(f"/api/git/credentials/{encode_path(str(credential_id))}", json=body)
+    return redact_sensitive_dict(data)
 
 async def delete_git_credential(credential_id: int, ctx: Context) -> dict:
     """Delete a Git credential."""

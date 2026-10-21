@@ -4,7 +4,7 @@ Stack (Docker Compose) management tools.
 
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict
 
 
 def _compact_stack(s: dict) -> dict:
@@ -86,12 +86,21 @@ async def create_stack(
     return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
 
 async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the docker-compose.yml content for a stack."""
+    """Get the docker-compose.yml content for a stack. Inline secret environment variables are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/compose", 
         params={"env": environment_id}
     )
+    if isinstance(data, dict):
+        data = dict(data)
+        for key in ("content", "compose"):
+            if isinstance(data.get(key), str):
+                data[key] = redact_env_text(data[key])
+        return data
+    if isinstance(data, str):
+        return redact_env_text(data)
+    return data
 
 async def update_stack_compose(
     environment_id: int, 
@@ -126,20 +135,28 @@ async def update_stack_compose(
     )
 
 async def get_stack_env(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the structured environment variables (.env) for a stack."""
+    """Get the structured environment variables (.env) for a stack. Secret values are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/env", 
         params={"env": environment_id}
     )
+    return redact_sensitive_dict(data)
 
 async def get_stack_env_raw(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the raw .env file contents for a stack."""
+    """Get the raw .env file contents for a stack. Secret values are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/env/raw", 
         params={"env": environment_id}
     )
+    if isinstance(data, dict) and isinstance(data.get("content"), str):
+        data = dict(data)
+        data["content"] = redact_env_text(data["content"])
+        return data
+    if isinstance(data, str):
+        return redact_env_text(data)
+    return data
 
 async def update_stack_env_raw(
     environment_id: int, 
@@ -147,13 +164,20 @@ async def update_stack_env_raw(
     content: str, 
     ctx: Context
 ) -> dict:
-    """Update the full .env file content for a stack. Empty string deletes it."""
+    """
+    Update the full .env file content for a stack. Empty string deletes it.
+    ⚠️ SECURITY WARNING: Passing secret values in content exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put(
+    data = await client.put(
         f"/api/stacks/{encode_path(name)}/env/raw", 
         json={"content": content}, 
         params={"env": environment_id}
     )
+    if isinstance(data, dict) and isinstance(data.get("content"), str):
+        data = dict(data)
+        data["content"] = redact_env_text(data["content"])
+    return redact_sensitive_dict(data)
 
 async def deploy_stack(
     environment_id: int, 
@@ -248,13 +272,17 @@ async def update_stack_env(
     env_vars: list[dict[str, Any]],
     ctx: Context,
 ) -> dict:
-    """Update stack environment variables with structured merge/replace."""
+    """
+    Update stack environment variables with structured merge/replace.
+    ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put(
+    data = await client.put(
         f"/api/stacks/{encode_path(name)}/env",
         json={"envVars": env_vars},
         params={"env": environment_id}
     )
+    return redact_sensitive_dict(data)
 
 async def remove_stack_env_vars(
     environment_id: int,
@@ -302,7 +330,7 @@ async def get_stack_delete_preview(
     """Get a preview of what will be deleted when removing a stack."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
-        f"/api/stacks/{encode_path(name)}/delete/preview",
+        f"/api/stacks/{encode_path(name)}/delete-preview",
         params={"env": environment_id}
     )
 
@@ -340,13 +368,30 @@ async def get_stack_deploy_history(environment_id: int, name: str, ctx: Context)
         params={"env": environment_id}
     )
 
-async def get_stack_deploy_log(environment_id: int, name: str, run_id: int, ctx: Context) -> dict:
-    """Get the raw deployment log text for a specific stack deploy run."""
+async def get_stack_deploy_log(
+    environment_id: int,
+    name: str,
+    run_id: int,
+    ctx: Context,
+    max_bytes: int = 20480,
+) -> dict:
+    """Get the raw deployment log text for a specific stack deploy run (truncated to max_bytes, default 20KB)."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/deploys/{encode_path(str(run_id))}/log",
         params={"env": environment_id}
     )
+    if max_bytes and max_bytes > 0:
+        if isinstance(data, dict):
+            data = dict(data)
+            for key in ("log", "output", "content"):
+                val = data.get(key)
+                if isinstance(val, str) and len(val) > max_bytes:
+                    data[key] = val[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
+                    data["truncated"] = True
+        elif isinstance(data, str) and len(data) > max_bytes:
+            return data[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
+    return data
 
 async def get_stack_stats(environment_id: int, ctx: Context) -> list:
     """Return a CPU/memory/network/block-IO stats snapshot per compose stack in an environment."""

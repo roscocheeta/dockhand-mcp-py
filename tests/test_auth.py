@@ -12,6 +12,7 @@ import respx
 
 from dockhand_mcp.client import (
     DockhandAuth,
+    DockhandAPIError,
     DockhandAuthError,
     DockhandClient,
 )
@@ -188,3 +189,91 @@ class TestSessionExpiry:
             assert login_route.call_count <= 5
         finally:
             await client.close()
+
+
+class TestBearerTokenAuth:
+    """Tests for DOCKHAND_API_TOKEN Bearer token authentication."""
+
+    async def test_api_token_skips_cookie_login_and_sends_bearer_header(self, mock_router: respx.MockRouter):
+        """When api_token is provided, /api/auth/login is skipped and Authorization: Bearer is sent."""
+        login_route = mock_login_success(mock_router)
+        health_route = mock_router.get("/api/health").respond(200, json={"status": "ok"})
+
+        client = DockhandClient(TEST_BASE_URL, api_token="dh_secret_token_123")
+        try:
+            result = await client.health_check()
+            assert result["status"] == "ok"
+            assert login_route.call_count == 0
+            assert health_route.call_count == 1
+            auth_header = health_route.calls.last.request.headers.get("Authorization")
+            assert auth_header == "Bearer dh_secret_token_123"
+        finally:
+            await client.close()
+
+    async def test_api_token_401_does_not_attempt_cookie_login(self, mock_router: respx.MockRouter):
+        """When using api_token, a 401 response should raise DockhandAPIError without calling /api/auth/login."""
+        login_route = mock_login_success(mock_router)
+        mock_router.get("/api/containers").respond(401, text="Invalid token")
+
+        client = DockhandClient(TEST_BASE_URL, api_token="dh_invalid_token")
+        try:
+            with pytest.raises(DockhandAPIError) as exc_info:
+                await client.get("/api/containers")
+            assert exc_info.value.status_code == 401
+            assert login_route.call_count == 0
+        finally:
+            await client.close()
+
+    def test_get_config_accepts_api_token_without_username_password(self, monkeypatch):
+        """_get_config() should succeed with DOCKHAND_URL and DOCKHAND_API_TOKEN alone."""
+        from dockhand_mcp.server import _get_config
+        monkeypatch.setenv("DOCKHAND_URL", "https://dockhand.example.com")
+        monkeypatch.setenv("DOCKHAND_API_TOKEN", "dh_tok_abc")
+        monkeypatch.delenv("DOCKHAND_USERNAME", raising=False)
+        monkeypatch.delenv("DOCKHAND_PASSWORD", raising=False)
+        monkeypatch.setenv("DOCKHAND_READ_ONLY", "true")
+
+        cfg = _get_config()
+        assert cfg["url"] == "https://dockhand.example.com"
+        assert cfg["api_token"] == "dh_tok_abc"
+        assert cfg["read_only"] is True
+
+    def test_get_config_rejects_invalid_url_scheme_and_warns_ssl_off(self, monkeypatch, caplog):
+        """_get_config() should exit on non-http(s) URLs and log a warning when DOCKHAND_VERIFY_SSL=false."""
+        from dockhand_mcp.server import _get_config
+        monkeypatch.setenv("DOCKHAND_API_TOKEN", "dh_tok_abc")
+        monkeypatch.setenv("DOCKHAND_URL", "ftp://dockhand.example.com")
+        with pytest.raises(SystemExit):
+            _get_config()
+
+        monkeypatch.setenv("DOCKHAND_URL", "https://dockhand.example.com")
+        monkeypatch.setenv("DOCKHAND_VERIFY_SSL", "false")
+        with caplog.at_level("WARNING"):
+            cfg = _get_config()
+        assert cfg["verify_ssl"] is False
+        assert "SSL certificate verification is DISABLED" in caplog.text
+
+    async def test_server_lifespan_and_error_formatting(self, monkeypatch):
+        """Verify server lifespan context manager and _format_error helper."""
+        from dockhand_mcp.server import lifespan, mcp, _format_error, _get_config
+        monkeypatch.delenv("DOCKHAND_URL", raising=False)
+        monkeypatch.delenv("DOCKHAND_API_TOKEN", raising=False)
+        monkeypatch.delenv("DOCKHAND_USERNAME", raising=False)
+        monkeypatch.delenv("DOCKHAND_PASSWORD", raising=False)
+        with pytest.raises(SystemExit):
+            _get_config()
+
+        monkeypatch.setenv("DOCKHAND_URL", "https://dockhand.example.com")
+        monkeypatch.setenv("DOCKHAND_API_TOKEN", "dh_tok_123")
+        async with lifespan(mcp) as ctx_dict:
+            assert "dockhand" in ctx_dict
+            client = ctx_dict["dockhand"]
+            assert not client._client.is_closed
+        assert client._client.is_closed
+
+        assert "HTTP 404" in _format_error(DockhandAPIError(404, "missing", "GET", "/api/x"))
+        assert "Authentication Error" in _format_error(DockhandAuthError("bad creds"))
+        assert "Unexpected error" in _format_error(RuntimeError("boom"))
+
+
+

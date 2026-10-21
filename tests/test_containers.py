@@ -252,7 +252,14 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
     )
     with respx.mock:
         compose_route = respx.get("http://dockhand.test/api/containers/123/compose?env=1").mock(
-            return_value=Response(200, json={"compose": "services:\n  web:\n    image: nginx\n", "serviceName": "web"})
+            return_value=Response(
+                200,
+                json={
+                    "compose": "services:\n  web:\n    image: nginx\n    environment:\n      - DB_PASSWORD=secret_db_pw\n      - APP_ENV=prod\n",
+                    "composeFullEnv": "services:\n  web:\n    environment:\n      API_TOKEN: super_secret_token\n",
+                    "serviceName": "web",
+                },
+            )
         )
         check_route = respx.post("http://dockhand.test/api/containers/check-updates?env=1").mock(
             return_value=Response(
@@ -277,6 +284,11 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
         comp = await get_container_compose(environment_id=1, container_id="123", ctx=mock_ctx)
         assert compose_route.called
         assert comp["serviceName"] == "web"
+        assert "DB_PASSWORD=***REDACTED***" in comp["compose"]
+        assert "APP_ENV=prod" in comp["compose"]
+        assert "secret_db_pw" not in comp["compose"]
+        assert "API_TOKEN: ***REDACTED***" in comp["composeFullEnv"]
+        assert "super_secret_token" not in comp["composeFullEnv"]
 
         chk = await check_container_updates(environment_id=1, ctx=mock_ctx)
         assert check_route.called
@@ -286,3 +298,140 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
         assert pending_route.called
         assert pend["minimumReleaseAgeHours"] == 24
         assert pend["pendingUpdates"][0]["pinnedToDigest"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_container_exec_truncates_output(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import run_container_exec
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/containers/123/exec/run?envId=1").mock(
+            return_value=Response(
+                200,
+                json={"stdout": "A" * 500, "stderr": "B" * 500, "exitCode": 0},
+            )
+        )
+        res = await run_container_exec(
+            environment_id=1,
+            container_id="123",
+            cmd=["ls"],
+            ctx=mock_ctx,
+            max_bytes=100,
+        )
+        assert route.called
+        assert res["truncated"] is True
+        assert res["stdout"].startswith("A" * 100)
+        assert "[TRUNCATED AT 100 BYTES]" in res["stdout"]
+        assert res["stderr"].startswith("B" * 100)
+        assert "[TRUNCATED AT 100 BYTES]" in res["stderr"]
+
+
+@pytest.mark.asyncio
+async def test_container_inspect_logs_stats_top_files_and_lifecycle(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import (
+        get_container,
+        inspect_container,
+        get_container_logs,
+        get_container_stats,
+        get_container_top,
+        list_container_files,
+        get_container_file_content,
+        rename_container_file,
+        stop_container,
+        restart_container,
+        pause_container,
+        unpause_container,
+        delete_container,
+        rename_container,
+        exec_container,
+    )
+    inspect_payload = {
+        "Id": "abcdef1234567890",
+        "Image": "sha256:999888777666555",
+        "Config": {
+            "Env": ["APP_ENV=prod", "DB_PASSWORD=super_secret_db_pw"],
+            "Labels": {"com.docker.compose.project": "myproj", "custom": "kept"},
+        },
+    }
+    with respx.mock:
+        respx.get("http://dockhand.test/api/containers/c1?env=1").mock(
+            return_value=Response(200, json=inspect_payload)
+        )
+        respx.get("http://dockhand.test/api/containers/c1/inspect?env=1").mock(
+            return_value=Response(200, json=inspect_payload)
+        )
+        logs_route = respx.get("http://dockhand.test/api/containers/c1/logs?env=1&tail=500").mock(
+            return_value=Response(200, text="line1\nline2", headers={"Content-Type": "text/plain"})
+        )
+        respx.get("http://dockhand.test/api/containers/c1/stats?env=1").mock(
+            return_value=Response(200, json={"cpuPercent": 12.5})
+        )
+        respx.get("http://dockhand.test/api/containers/c1/top?env=1").mock(
+            return_value=Response(200, json={"Processes": [["root", "1", "nginx"]]})
+        )
+        respx.get("http://dockhand.test/api/containers/c1/files?env=1&path=%2Fetc").mock(
+            return_value=Response(200, json=[{"name": "nginx.conf"}])
+        )
+        respx.get("http://dockhand.test/api/containers/c1/files/content?env=1&path=%2Fetc%2Fbig.txt").mock(
+            return_value=Response(200, text="Z" * 500, headers={"Content-Type": "text/plain"})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/files/rename?env=1").mock(
+            return_value=Response(200, json={"renamed": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/stop?env=1").mock(
+            return_value=Response(200, json={"stopped": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/restart?env=1").mock(
+            return_value=Response(200, json={"restarted": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/pause?env=1").mock(
+            return_value=Response(200, json={"paused": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/unpause?env=1").mock(
+            return_value=Response(200, json={"unpaused": True})
+        )
+        respx.delete("http://dockhand.test/api/containers/c1?env=1&force=true").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/rename?env=1").mock(
+            return_value=Response(200, json={"renamed": True})
+        )
+        respx.post("http://dockhand.test/api/containers/c1/exec?envId=1").mock(
+            return_value=Response(200, json={"execId": "ex1"})
+        )
+
+        c_get = await get_container(1, "c1", mock_ctx)
+        assert c_get["Id"] == "abcdef123456"
+        assert "DB_PASSWORD=***REDACTED***" in c_get["Config"]["Env"]
+        assert "super_secret_db_pw" not in str(c_get)
+
+        c_insp = await inspect_container(1, "c1", mock_ctx)
+        assert c_insp["Config"]["Labels"] == {"custom": "kept"}
+
+        # Tail > 500 should be capped to 500
+        logs = await get_container_logs(1, "c1", mock_ctx, tail=9999)
+        assert logs_route.called
+        assert "line1" in logs
+
+        stats = await get_container_stats(1, "c1", mock_ctx)
+        assert stats["cpuPercent"] == 12.5
+
+        top = await get_container_top(1, "c1", mock_ctx)
+        assert top["Processes"][0][2] == "nginx"
+
+        files = await list_container_files(1, "c1", mock_ctx, path="/etc")
+        assert files[0]["name"] == "nginx.conf"
+
+        content = await get_container_file_content(1, "c1", "/etc/big.txt", mock_ctx, max_bytes=100)
+        assert content.startswith("Z" * 100)
+        assert "[...truncated at 100 bytes" in content
+
+        assert (await rename_container_file(1, "c1", "/a", "/b", mock_ctx))["renamed"] is True
+        assert (await stop_container(1, "c1", mock_ctx))["stopped"] is True
+        assert (await restart_container(1, "c1", mock_ctx))["restarted"] is True
+        assert (await pause_container(1, "c1", mock_ctx))["paused"] is True
+        assert (await unpause_container(1, "c1", mock_ctx))["unpaused"] is True
+        assert (await delete_container(1, "c1", mock_ctx, force=True))["deleted"] is True
+        assert (await rename_container(1, "c1", "c2", mock_ctx))["renamed"] is True
+        assert (await exec_container(1, "c1", mock_ctx, shell="sh", user="root"))["execId"] == "ex1"
+
+

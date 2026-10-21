@@ -207,3 +207,173 @@ async def test_get_stack_stats_and_path_hints(mock_client, mock_ctx):
         assert hints_route.called
         assert hints["workingDir"] == "/opt/stacks/web"
 
+
+@pytest.mark.asyncio
+async def test_get_stack_env_and_raw_redact_secrets(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_env, get_stack_env_raw
+    with respx.mock:
+        env_route = respx.get("http://dockhand.test/api/stacks/web/env?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "variables": {"APP_ENV": "prod", "DB_PASSWORD": "plain_password"},
+                    "envVars": [
+                        {"key": "REDIS_HOST", "value": "redis", "isSecret": False},
+                        {"key": "API_SECRET", "value": "top_secret", "isSecret": False},
+                        {"key": "CUSTOM_VAL", "value": "marked_secret", "isSecret": True},
+                    ],
+                },
+            )
+        )
+        raw_route = respx.get("http://dockhand.test/api/stacks/web/env/raw?env=1").mock(
+            return_value=Response(
+                200,
+                json={"content": "APP_ENV=prod\nDB_PASSWORD=plain_password\nAPI_TOKEN=tok_123\n"},
+            )
+        )
+
+        env_res = await get_stack_env(environment_id=1, name="web", ctx=mock_ctx)
+        assert env_route.called
+        assert env_res["variables"]["APP_ENV"] == "prod"
+        assert env_res["variables"]["DB_PASSWORD"] == "***REDACTED***"
+        assert env_res["envVars"][0]["value"] == "redis"
+        assert env_res["envVars"][1]["value"] == "***REDACTED***"
+        assert env_res["envVars"][2]["value"] == "***REDACTED***"
+
+        raw_res = await get_stack_env_raw(environment_id=1, name="web", ctx=mock_ctx)
+        assert raw_route.called
+        assert "APP_ENV=prod" in raw_res["content"]
+        assert "DB_PASSWORD=***REDACTED***" in raw_res["content"]
+        assert "API_TOKEN=***REDACTED***" in raw_res["content"]
+        assert "plain_password" not in raw_res["content"]
+        assert "tok_123" not in raw_res["content"]
+
+
+@pytest.mark.asyncio
+async def test_get_stack_deploy_log_truncates_output(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_deploy_log
+    with respx.mock:
+        route = respx.get("http://dockhand.test/api/stacks/web/deploys/7/log?env=1").mock(
+            return_value=Response(200, json={"log": "L" * 1000})
+        )
+        res = await get_stack_deploy_log(
+            environment_id=1,
+            name="web",
+            run_id=7,
+            ctx=mock_ctx,
+            max_bytes=200,
+        )
+        assert route.called
+        assert res["truncated"] is True
+        assert res["log"].startswith("L" * 200)
+        assert "[TRUNCATED AT 200 BYTES]" in res["log"]
+
+
+@pytest.mark.asyncio
+async def test_get_stack_delete_preview_route(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_delete_preview
+    with respx.mock:
+        route = respx.get("http://dockhand.test/api/stacks/web/delete-preview?env=1").mock(
+            return_value=Response(200, json={"files": ["compose.yaml"], "containers": ["web-1"]})
+        )
+        res = await get_stack_delete_preview(environment_id=1, name="web", ctx=mock_ctx)
+        assert route.called
+        assert res["containers"] == ["web-1"]
+
+
+@pytest.mark.asyncio
+async def test_stack_compose_env_and_lifecycle_operations(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import (
+        get_stack_compose,
+        update_stack_compose,
+        update_stack_env,
+        update_stack_env_raw,
+        remove_stack_env_vars,
+        check_stack_env_collisions,
+        validate_stack_env,
+        deploy_stack,
+        start_stack,
+        stop_stack,
+        down_stack,
+        delete_stack,
+        adopt_stack,
+        relocate_stack,
+        get_stack_deploy_history,
+    )
+    sse_ok = Response(200, text='data: {"success": true}\n', headers={"Content-Type": "text/event-stream"})
+    with respx.mock:
+        respx.get("http://dockhand.test/api/stacks/web/compose?env=1").mock(
+            return_value=Response(
+                200,
+                json={"content": "services:\n  db:\n    environment:\n      - MYSQL_PASSWORD=inline_pw\n      - MYSQL_USER=app\n"},
+            )
+        )
+        respx.put("http://dockhand.test/api/stacks/web/compose?env=1").mock(
+            return_value=Response(200, json={"saved": True})
+        )
+        respx.put("http://dockhand.test/api/stacks/web/env?env=1").mock(
+            return_value=Response(
+                200,
+                json={"envVars": [{"key": "API_SECRET", "value": "sec_123", "isSecret": True}]},
+            )
+        )
+        respx.put("http://dockhand.test/api/stacks/web/env/raw?env=1").mock(
+            return_value=Response(200, json={"content": "API_SECRET=sec_123\nPORT=8080\n"})
+        )
+        respx.delete("http://dockhand.test/api/stacks/web/env?env=1").mock(
+            return_value=Response(200, json={"removed": ["OLD_VAR"]})
+        )
+        respx.get("http://dockhand.test/api/stacks/web/env/collisions?env=1").mock(
+            return_value=Response(200, json={"collisions": []})
+        )
+        respx.get("http://dockhand.test/api/stacks/web/env/validate?env=1").mock(
+            return_value=Response(200, json={"valid": True})
+        )
+        respx.post("http://dockhand.test/api/stacks/web/deploy?env=1").mock(return_value=sse_ok)
+        respx.post("http://dockhand.test/api/stacks/web/start?env=1").mock(return_value=sse_ok)
+        respx.post("http://dockhand.test/api/stacks/web/stop?env=1").mock(return_value=sse_ok)
+        respx.post("http://dockhand.test/api/stacks/web/down?env=1").mock(return_value=sse_ok)
+        respx.delete("http://dockhand.test/api/stacks/web?env=1&force=true&files=false").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        respx.post("http://dockhand.test/api/stacks/web/adopt?env=1").mock(
+            return_value=Response(200, json={"adopted": True})
+        )
+        respx.post("http://dockhand.test/api/stacks/web/relocate?env=1").mock(
+            return_value=Response(200, json={"relocated": True})
+        )
+        respx.get("http://dockhand.test/api/stacks/web/deploys?env=1").mock(
+            return_value=Response(200, json=[{"id": 1, "status": "success"}])
+        )
+
+        comp = await get_stack_compose(1, "web", mock_ctx)
+        assert "MYSQL_PASSWORD=***REDACTED***" in comp["content"]
+        assert "MYSQL_USER=app" in comp["content"]
+        assert "inline_pw" not in comp["content"]
+
+        saved = await update_stack_compose(1, "web", "services: {}", mock_ctx, restart=False)
+        assert saved["saved"] is True
+
+        upd_env = await update_stack_env(1, "web", [{"key": "API_SECRET", "value": "sec_123"}], mock_ctx)
+        assert upd_env["envVars"][0]["value"] == "***REDACTED***"
+
+        upd_raw = await update_stack_env_raw(1, "web", "API_SECRET=sec_123\nPORT=8080\n", mock_ctx)
+        assert "API_SECRET=***REDACTED***" in upd_raw["content"]
+        assert "sec_123" not in upd_raw["content"]
+
+        assert (await remove_stack_env_vars(1, "web", ["OLD_VAR"], mock_ctx))["removed"] == ["OLD_VAR"]
+        assert (await check_stack_env_collisions(1, "web", mock_ctx))["collisions"] == []
+        assert (await validate_stack_env(1, "web", mock_ctx))["valid"] is True
+        assert (await deploy_stack(1, "web", mock_ctx))["success"] is True
+        assert (await start_stack(1, "web", mock_ctx))["success"] is True
+        assert (await stop_stack(1, "web", mock_ctx))["success"] is True
+        assert (await down_stack(1, "web", mock_ctx, remove_volumes=True))["success"] is True
+        assert (await delete_stack(1, "web", mock_ctx, force=True, files=False))["deleted"] is True
+        assert (await adopt_stack(1, "web", mock_ctx))["adopted"] is True
+        assert (await relocate_stack(1, "web", "/new/path", mock_ctx))["relocated"] is True
+        assert (await get_stack_deploy_history(1, "web", mock_ctx))[0]["id"] == 1
+
+
+
+
+

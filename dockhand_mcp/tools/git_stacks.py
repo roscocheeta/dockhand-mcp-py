@@ -3,7 +3,7 @@ Git Stack management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, strip_nulls
+from dockhand_mcp.utils import encode_path, redact_sensitive_dict, strip_nulls
 
 
 def _compact_git_stack(s: dict) -> dict:
@@ -27,10 +27,10 @@ async def list_git_stacks(ctx: Context) -> list:
     return stacks
 
 async def get_git_stack(stack_id: int, ctx: Context) -> dict:
-    """Get details for a specific Git stack."""
+    """Get details for a specific Git stack. Webhook secrets and secret env vars are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(f"/api/git/stacks/{encode_path(str(stack_id))}")
-    return strip_nulls(data)
+    return redact_sensitive_dict(strip_nulls(data))
 
 async def deploy_git_stack(stack_id: int, ctx: Context) -> dict:
     """Deploy a Git stack. Uses SSE streaming."""
@@ -63,6 +63,7 @@ async def create_git_stack(
     This creates a stack linked to a Git repository. The compose file
     is pulled from the repo and deployed. For internal string stacks
     (no Git), use the `create_stack` tool instead.
+    ⚠️ SECURITY WARNING: Passing webhook_secret or secret env_vars exposes them in plain text within your chat history.
 
     Args:
         environment_id: Environment ID where the stack will be created.
@@ -102,16 +103,21 @@ async def create_git_stack(
             body["webhookSecret"] = webhook_secret
     if env_vars is not None:
         body["envVars"] = env_vars
-    return await client.post("/api/git/stacks", json=body)
+    data = await client.post("/api/git/stacks", json=body)
+    return redact_sensitive_dict(data)
 
 async def update_git_stack(stack_id: int, ctx: Context, branch: str | None = None, compose_path: str | None = None, env_vars: list | None = None) -> dict:
-    """Update a Git stack."""
+    """
+    Update a Git stack.
+    ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if branch is not None: body["branch"] = branch
     if compose_path is not None: body["composePath"] = compose_path
     if env_vars is not None: body["envVars"] = env_vars
-    return await client.put(f"/api/git/stacks/{encode_path(str(stack_id))}", json=body)
+    data = await client.put(f"/api/git/stacks/{encode_path(str(stack_id))}", json=body)
+    return redact_sensitive_dict(data)
 
 async def delete_git_stack(stack_id: int, ctx: Context, force: bool = False) -> dict:
     """Delete a Git stack."""

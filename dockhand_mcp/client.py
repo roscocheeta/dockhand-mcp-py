@@ -39,6 +39,7 @@ class DockhandAuth:
     """
     Manages Dockhand session lifecycle.
 
+    - Supports static Bearer API tokens (DOCKHAND_API_TOKEN) or session cookies.
     - Uses httpx's built-in cookie jar (not manual Set-Cookie parsing).
     - Tracks a 23-hour expiry window for proactive session refresh.
     - Uses asyncio.Lock to prevent concurrent login storms.
@@ -46,16 +47,24 @@ class DockhandAuth:
 
     SESSION_TIMEOUT = timedelta(hours=23)
 
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(self, base_url: str, username: str = "", password: str = "", api_token: str = ""):
         self._base_url = base_url.rstrip("/")
         self._username = username
         self._password = password
+        self._api_token = api_token
         self._login_lock = asyncio.Lock()
         self._session_expires_at: Optional[datetime] = None
         self.session_version = 0
 
+    @property
+    def uses_token(self) -> bool:
+        """Return True when using Bearer API token authentication."""
+        return bool(self._api_token)
+
     def _is_valid(self) -> bool:
         """Check if the current session is still within the expiry window."""
+        if self.uses_token:
+            return True
         if self._session_expires_at is None:
             return False
         return datetime.now(timezone.utc) < self._session_expires_at
@@ -76,6 +85,8 @@ class DockhandAuth:
         and forces a re-login, but ONLY if the session hasn't already been
         refreshed by another concurrent request.
         """
+        if self.uses_token:
+            return
         async with self._login_lock:
             if self.session_version == failed_version:
                 self._session_expires_at = None
@@ -107,7 +118,7 @@ class DockhandAuth:
             ) from exc
 
         if resp.status_code != 200:
-            detail = resp.text[:500] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAuthError(
                 f"Dockhand login failed (HTTP {resp.status_code}): {detail}"
             )
@@ -136,15 +147,36 @@ class DockhandClient:
     - Proper async lifecycle (close / context manager)
     """
 
-    def __init__(self, base_url: str, username: str, password: str, verify_ssl: bool = True):
+    def __init__(
+        self,
+        base_url: str,
+        username: str = "",
+        password: str = "",
+        verify_ssl: bool = True,
+        api_token: str = "",
+        read_only: bool = False,
+    ):
         self._base_url = base_url.rstrip("/")
-        self._auth = DockhandAuth(self._base_url, username, password)
+        self._read_only = read_only
+        self._auth = DockhandAuth(self._base_url, username, password, api_token=api_token)
+        default_headers = {"Authorization": f"Bearer {api_token}"} if api_token else {}
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
+            headers=default_headers,
             timeout=httpx.Timeout(30.0, connect=10.0),
             follow_redirects=False,
             verify=verify_ssl,
         )
+
+    def _check_read_only(self, method: str, path: str) -> None:
+        """Raise DockhandAPIError(403) if mutating HTTP method is called in read-only mode."""
+        if self._read_only and method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            raise DockhandAPIError(
+                403,
+                "Operation blocked: server is running in DOCKHAND_READ_ONLY mode",
+                method.upper(),
+                path,
+            )
 
     async def close(self) -> None:
         """Close the underlying httpx client and release connections."""
@@ -216,6 +248,7 @@ class DockhandClient:
         params: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Make a request expecting an SSE stream and parse the data lines."""
+        self._check_read_only(method, path)
         await self._auth.ensure_authenticated(self._client)
 
         clean_params = {k: v for k, v in params.items() if v is not None} if params else None
@@ -233,12 +266,12 @@ class DockhandClient:
         kwargs["timeout"] = httpx.Timeout(300.0, connect=10.0)
         resp = await self._client.request(method, path, **kwargs)
 
-        if resp.status_code == 401:
+        if resp.status_code == 401 and not self._auth.uses_token:
             await self._auth.invalidate_and_retry(self._client, current_version)
             resp = await self._client.request(method, path, **kwargs)
 
         if resp.status_code >= 400:
-            detail = resp.text[:1000] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAPIError(resp.status_code, detail, method, path)
 
         return self._parse_sse_response(resp)
@@ -319,6 +352,7 @@ class DockhandClient:
         Make an authenticated request with transparent 401 retry.
         Returns the raw httpx.Response (caller is responsible for parsing).
         """
+        self._check_read_only(method, path)
         # Ensure we have a valid session before the first attempt.
         await self._auth.ensure_authenticated(self._client)
 
@@ -343,14 +377,14 @@ class DockhandClient:
         resp = await self._client.request(method, path, **kwargs)
 
         # Transparent 401 retry - re-login and try once more.
-        if resp.status_code == 401:
+        if resp.status_code == 401 and not self._auth.uses_token:
             logger.info("Received 401 on %s %s, re-authenticating...", method, path)
             await self._auth.invalidate_and_retry(self._client, current_version)
             resp = await self._client.request(method, path, **kwargs)
 
         # Raise on non-2xx (after any retry).
         if resp.status_code >= 400:
-            detail = resp.text[:1000] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAPIError(resp.status_code, detail, method, path)
 
         return resp

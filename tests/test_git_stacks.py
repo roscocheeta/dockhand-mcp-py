@@ -119,3 +119,120 @@ async def test_create_git_stack_full_options(mock_client):
         assert payload["envVars"] == [{"key": "APP_ENV", "value": "prod", "isSecret": False}]
         assert result["success"] is True
 
+
+@pytest.mark.asyncio
+async def test_git_stack_redacts_webhook_secret_and_env_vars(mock_client):
+    from dockhand_mcp.tools.git_stacks import get_git_stack, update_git_stack
+    mock_ctx = MockContext(mock_client)
+    mock_stack_payload = {
+        "id": 10,
+        "stackName": "sec-stack",
+        "webhookEnabled": True,
+        "webhookSecret": "plain_webhook_secret",
+        "envVars": [
+            {"key": "APP_MODE", "value": "production", "isSecret": False},
+            {"key": "DB_PASSWORD", "value": "db_pass_123", "isSecret": False},
+            {"key": "INTERNAL_ID", "value": "sec_val", "isSecret": True},
+        ],
+    }
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/git/stacks/10").mock(
+            return_value=Response(200, json=mock_stack_payload)
+        )
+        put_route = respx.put("http://dockhand.test/api/git/stacks/10").mock(
+            return_value=Response(200, json=mock_stack_payload)
+        )
+
+        fetched = await get_git_stack(stack_id=10, ctx=mock_ctx)
+        assert get_route.called
+        assert fetched["webhookSecret"] == "***REDACTED***"
+        assert fetched["envVars"][0]["value"] == "production"
+        assert fetched["envVars"][1]["value"] == "***REDACTED***"
+        assert fetched["envVars"][2]["value"] == "***REDACTED***"
+
+        updated = await update_git_stack(stack_id=10, ctx=mock_ctx, branch="main")
+        assert put_route.called
+        assert updated["webhookSecret"] == "***REDACTED***"
+        assert "plain_webhook_secret" not in str(updated)
+        assert "db_pass_123" not in str(updated)
+
+
+@pytest.mark.asyncio
+async def test_create_and_update_git_credential_redact_secrets(mock_client):
+    from dockhand_mcp.tools.git_credentials import create_git_credential, update_git_credential
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        post_route = respx.post("http://dockhand.test/api/git/credentials").mock(
+            return_value=Response(200, json={"id": 1, "name": "gh", "password": "secret_pat", "privateKey": "ssh_key_pem"})
+        )
+        put_route = respx.put("http://dockhand.test/api/git/credentials/1").mock(
+            return_value=Response(200, json={"id": 1, "name": "gh", "password": "updated_pat"})
+        )
+
+        created = await create_git_credential(name="gh", username="git", ctx=mock_ctx, password="secret_pat")
+        assert post_route.called
+        assert created["password"] == "***REDACTED***"
+        assert created["privateKey"] == "***REDACTED***"
+
+        updated = await update_git_credential(credential_id=1, ctx=mock_ctx, password="updated_pat")
+        assert put_route.called
+        assert updated["password"] == "***REDACTED***"
+
+
+@pytest.mark.asyncio
+async def test_git_stack_list_deploy_sync_delete_and_cred_delete(mock_client):
+    from dockhand_mcp.tools.git_stacks import (
+        list_git_stacks,
+        deploy_git_stack,
+        sync_git_stack,
+        delete_git_stack,
+    )
+    from dockhand_mcp.tools.git_credentials import delete_git_credential
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        list_route = respx.get("http://dockhand.test/api/git/stacks").mock(
+            return_value=Response(
+                200,
+                json=[{"id": 1, "name": "git-app", "repositoryId": 5, "branch": "main", "composePath": "compose.yaml"}],
+            )
+        )
+        deploy_route = respx.post("http://dockhand.test/api/git/stacks/1/deploy-stream").mock(
+            return_value=Response(
+                200,
+                text='data: {"output": "Deployed", "success": true}\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+        sync_route = respx.post("http://dockhand.test/api/git/stacks/1/sync").mock(
+            return_value=Response(200, json={"synced": True})
+        )
+        del_route = respx.delete("http://dockhand.test/api/git/stacks/1?force=true").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        cred_del_route = respx.delete("http://dockhand.test/api/git/credentials/9").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+
+        stacks = await list_git_stacks(ctx=mock_ctx)
+        assert list_route.called
+        assert stacks[0]["Name"] == "git-app"
+
+        dep = await deploy_git_stack(stack_id=1, ctx=mock_ctx)
+        assert deploy_route.called
+        assert dep["success"] is True
+
+        syn = await sync_git_stack(stack_id=1, ctx=mock_ctx)
+        assert sync_route.called
+        assert syn["synced"] is True
+
+        deleted = await delete_git_stack(stack_id=1, ctx=mock_ctx, force=True)
+        assert del_route.called
+        assert deleted["deleted"] is True
+
+        cred_del = await delete_git_credential(credential_id=9, ctx=mock_ctx)
+        assert cred_del_route.called
+        assert cred_del["deleted"] is True
+
+
+
+

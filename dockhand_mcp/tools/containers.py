@@ -5,7 +5,7 @@ Container management tools (Read-only for Phase 2b).
 import json
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect
+from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect, redact_env_text
 
 
 def _compact_container(c: dict) -> dict:
@@ -352,8 +352,12 @@ async def run_container_exec(
     ctx: Context,
     user: str | None = None,
     working_dir: str | None = None,
+    max_bytes: int = 10240,
 ) -> dict:
-    """Run a one-shot command in a container and wait for the result (returns stdout, stderr, exitCode)."""
+    """
+    Run a one-shot command in a container and wait for the result (returns stdout, stderr, exitCode).
+    ⚠️ SECURITY WARNING: Executes arbitrary commands inside the target container and streams output into the chat context.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"cmd": cmd}
     if user:
@@ -361,11 +365,19 @@ async def run_container_exec(
     if working_dir:
         body["workingDir"] = working_dir
         
-    return await client.post(
+    data = await client.post(
         f"/api/containers/{encode_path(container_id)}/exec/run", 
         json=body, 
         params={"envId": environment_id}
     )
+    if isinstance(data, dict) and max_bytes and max_bytes > 0:
+        data = dict(data)
+        for stream_key in ("stdout", "stderr", "output"):
+            val = data.get(stream_key)
+            if isinstance(val, str) and len(val) > max_bytes:
+                data[stream_key] = val[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
+                data["truncated"] = True
+    return data
 
 async def delete_container_file(
     environment_id: int,
@@ -396,12 +408,19 @@ async def rename_container_file(
     )
 
 async def get_container_compose(environment_id: int, container_id: str, ctx: Context) -> dict:
-    """Generate a docker-compose service definition from a running container's inspect."""
+    """Generate a docker-compose service definition from a running container's inspect. Secret env vars are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/containers/{encode_path(container_id)}/compose",
         params={"env": environment_id},
     )
+    if isinstance(data, dict):
+        data = dict(data)
+        if isinstance(data.get("compose"), str):
+            data["compose"] = redact_env_text(data["compose"])
+        if isinstance(data.get("composeFullEnv"), str):
+            data["composeFullEnv"] = redact_env_text(data["composeFullEnv"])
+    return data
 
 async def check_container_updates(environment_id: int, ctx: Context) -> dict:
     """Trigger a fresh image-update check across all containers in an environment."""

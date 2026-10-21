@@ -6,9 +6,9 @@ Written in Python using the `mcp` SDK and FastMCP.
 
 ## Features
 
-- **Transparent Auth**: Handles Dockhand authentication, tracking the ~24h session expiry, and uses an `asyncio.Lock` to prevent concurrent 401 retry floods.
+- **Transparent Auth**: Supports both scoped Bearer API tokens (`DOCKHAND_API_TOKEN`) and session-cookie login (`DOCKHAND_USERNAME` + `DOCKHAND_PASSWORD`) with ~24h session refresh and an `asyncio.Lock` to prevent concurrent 401 retry floods.
 - **Protocol Safe**: Explicitly routes all Python logging to `sys.stderr` to prevent JSON-RPC transport corruption.
-- **Secure**: Automatically strips sensitive internal credentials (`hawserToken`, `tlsKey`) from API responses before passing them to the LLM context.
+- **Secure & Guardrailed**: Automatically redacts sensitive credentials (`hawserToken`, `tlsKey`, `.env` secrets, webhook tokens, OIDC/LDAP secrets) from API responses, attaches MCP `ToolAnnotations` (`readOnlyHint`, `destructiveHint`), and supports a strict `DOCKHAND_READ_ONLY=true` mode.
 
 ## Available Tools
 
@@ -82,10 +82,15 @@ To protect your data during read operations, the server automatically masks or s
 
 ## Configuration
 
-The server requires three environment variables to connect to your Dockhand instance:
+The server requires `DOCKHAND_URL` and either a Bearer API token (`DOCKHAND_API_TOKEN`, recommended) or username/password credentials:
 
 ```env
 DOCKHAND_URL=http://your-dockhand-instance:3866
+
+# Option 1 (Recommended): Scoped API Token
+DOCKHAND_API_TOKEN=dh_your_api_token_here
+
+# Option 2: Session Cookie Login
 DOCKHAND_USERNAME=your-username
 DOCKHAND_PASSWORD=your-password
 ```
@@ -94,6 +99,9 @@ Optional configuration:
 ```env
 # Set to 'false' if your homelab uses self-signed certificates
 DOCKHAND_VERIFY_SSL=true
+
+# Set to 'true' to expose only read-only tools and block POST/PUT/DELETE requests
+DOCKHAND_READ_ONLY=false
 ```
 
 > **Security Note:** It is highly recommended to create a dedicated Service Account in Dockhand for this MCP server, rather than using your personal admin credentials.

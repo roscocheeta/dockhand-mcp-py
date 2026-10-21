@@ -3,19 +3,21 @@ Miscellaneous and Tier 3 Dockhand tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
 
 
 async def list_notifications(ctx: Context) -> list:
     """List configured notifications/webhooks."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/notifications")
+    data = await client.get("/api/notifications")
+    return redact_sensitive_dict(data)
 
 async def create_notification(name: str, webhook_url: str, ctx: Context) -> dict:
     """Create a new notification webhook."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post("/api/notifications", json={"name": name, "url": webhook_url})
+    data = await client.post("/api/notifications", json={"name": name, "url": webhook_url})
+    return redact_sensitive_dict(data)
 
 async def list_schedules(ctx: Context) -> list:
     """List configured automation schedules."""
@@ -65,17 +67,18 @@ async def list_labels(environment_id: int, ctx: Context) -> list:
 async def get_preferences(ctx: Context) -> dict:
     """Get user preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/users/preferences")
+    return await client.get("/api/profile/preferences")
 
 async def set_preferences(preferences: dict, ctx: Context) -> dict:
     """Set user preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put("/api/users/preferences", json=preferences)
+    return await client.put("/api/profile/preferences", json=preferences)
 
 async def list_secret_providers(ctx: Context) -> list:
     """List configured external secret providers (e.g. HashiCorp Vault)."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/secrets/providers")
+    data = await client.get("/api/secret-providers")
+    return redact_sensitive_dict(data)
 
 async def list_config_sets(ctx: Context) -> list:
     """List configuration sets (environment variable collections)."""
@@ -86,7 +89,7 @@ async def get_auto_update(environment_id: int, container_id: str, ctx: Context) 
     """Check the auto-update policy for a container."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
-        f"/api/containers/{encode_path(container_id)}/auto-update", 
+        f"/api/auto-update/{encode_path(container_id)}", 
         params={"env": environment_id}
     )
 
@@ -94,7 +97,7 @@ async def set_auto_update(environment_id: int, container_id: str, enabled: bool,
     """Set the auto-update policy for a container."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put(
-        f"/api/containers/{encode_path(container_id)}/auto-update", 
+        f"/api/auto-update/{encode_path(container_id)}", 
         json={"enabled": enabled},
         params={"env": environment_id}
     )
@@ -102,12 +105,14 @@ async def set_auto_update(environment_id: int, container_id: str, enabled: bool,
 async def get_notification(notification_id: int, ctx: Context) -> dict:
     """Get details of a specific notification."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/notifications/{encode_path(str(notification_id))}")
+    data = await client.get(f"/api/notifications/{encode_path(str(notification_id))}")
+    return redact_sensitive_dict(data)
 
 async def get_secret_provider(provider_id: int, ctx: Context) -> dict:
     """Get details of a specific secret provider."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/secrets/providers/{encode_path(str(provider_id))}")
+    data = await client.get(f"/api/secret-providers/{encode_path(str(provider_id))}")
+    return redact_sensitive_dict(data)
 
 async def get_theme_settings(ctx: Context) -> dict:
     """Get UI theme settings."""
@@ -122,12 +127,12 @@ async def update_theme_settings(theme: str, ctx: Context) -> dict:
 async def get_sidebar_preferences(ctx: Context) -> dict:
     """Get sidebar preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/users/preferences/sidebar")
+    return await client.get("/api/preferences/sidebar")
 
 async def set_grid_preferences(grid: dict, ctx: Context) -> dict:
     """Set UI grid layout preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.put("/api/users/preferences/grid", json=grid)
+    return await client.put("/api/preferences/grid", json=grid)
 
 async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Context) -> dict:
     """Bulk-delete backup snapshots from a specific destination."""
@@ -189,7 +194,8 @@ async def create_secret_provider(name: str, type: str, config: dict, ctx: Contex
     SECURITY WARNING: The config parameter may contain sensitive credentials in plain text.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post("/api/secret-providers", json={"name": name, "type": type, "config": config})
+    data = await client.post("/api/secret-providers", json={"name": name, "type": type, "config": config})
+    return redact_sensitive_dict(data)
 
 async def update_secret_provider(
     provider_id: int,
@@ -210,7 +216,8 @@ async def update_secret_provider(
         body["type"] = type
     if config is not None:
         body["config"] = config
-    return await client.put(f"/api/secret-providers/{encode_path(str(provider_id))}", json=body)
+    data = await client.put(f"/api/secret-providers/{encode_path(str(provider_id))}", json=body)
+    return redact_sensitive_dict(data)
 
 async def delete_secret_provider(provider_id: int, ctx: Context) -> dict:
     """Delete a secret provider."""
