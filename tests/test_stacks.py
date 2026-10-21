@@ -269,4 +269,17 @@ async def test_get_stack_deploy_log_truncates_output(mock_client, mock_ctx):
         assert "[TRUNCATED AT 200 BYTES]" in res["log"]
 
 
+@pytest.mark.asyncio
+async def test_get_stack_delete_preview_route(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_delete_preview
+    with respx.mock:
+        route = respx.get("http://dockhand.test/api/stacks/web/delete-preview?env=1").mock(
+            return_value=Response(200, json={"files": ["compose.yaml"], "containers": ["web-1"]})
+        )
+        res = await get_stack_delete_preview(environment_id=1, name="web", ctx=mock_ctx)
+        assert route.called
+        assert res["containers"] == ["web-1"]
+
+
+
 

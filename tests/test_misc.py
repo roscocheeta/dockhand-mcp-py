@@ -295,3 +295,52 @@ async def test_notifications_redact_secrets_and_urls(mock_client):
         assert get_route.called
         assert single["config"]["urls"] == ["discord://***REDACTED***"]
 
+
+@pytest.mark.asyncio
+async def test_aligned_v1054_misc_routes(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import (
+        list_secret_providers,
+        get_secret_provider,
+        get_preferences,
+        get_sidebar_preferences,
+        get_auto_update,
+    )
+    with respx.mock:
+        sp_list_route = respx.get("http://dockhand.test/api/secret-providers").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "vault", "config": {"token": "v_tok"}}])
+        )
+        sp_get_route = respx.get("http://dockhand.test/api/secret-providers/1").mock(
+            return_value=Response(200, json={"id": 1, "name": "vault", "config": {"token": "v_tok"}})
+        )
+        prefs_route = respx.get("http://dockhand.test/api/profile/preferences").mock(
+            return_value=Response(200, json={"defaultEnv": 1})
+        )
+        sidebar_route = respx.get("http://dockhand.test/api/preferences/sidebar").mock(
+            return_value=Response(200, json={"collapsed": False})
+        )
+        au_route = respx.get("http://dockhand.test/api/auto-update/web?env=1").mock(
+            return_value=Response(200, json={"enabled": True})
+        )
+
+        sps = await list_secret_providers(ctx=mock_ctx)
+        assert sp_list_route.called
+        assert sps[0]["config"]["token"] == "***REDACTED***"
+
+        sp = await get_secret_provider(provider_id=1, ctx=mock_ctx)
+        assert sp_get_route.called
+        assert sp["config"]["token"] == "***REDACTED***"
+
+        prefs = await get_preferences(ctx=mock_ctx)
+        assert prefs_route.called
+        assert prefs["defaultEnv"] == 1
+
+        sb = await get_sidebar_preferences(ctx=mock_ctx)
+        assert sidebar_route.called
+        assert sb["collapsed"] is False
+
+        au = await get_auto_update(environment_id=1, container_id="web", ctx=mock_ctx)
+        assert au_route.called
+        assert au["enabled"] is True
+
+
