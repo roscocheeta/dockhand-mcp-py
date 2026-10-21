@@ -31,18 +31,21 @@ logger = logging.getLogger("dockhand_mcp")
 
 def _get_config() -> dict[str, Any]:
     """Read required configuration from environment variables."""
-    url = os.environ.get("DOCKHAND_URL", "")
-    username = os.environ.get("DOCKHAND_USERNAME", "")
+    url = os.environ.get("DOCKHAND_URL", "").strip()
+    api_token = os.environ.get("DOCKHAND_API_TOKEN", "").strip()
+    username = os.environ.get("DOCKHAND_USERNAME", "").strip()
     password = os.environ.get("DOCKHAND_PASSWORD", "")
     verify_ssl = os.environ.get("DOCKHAND_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
+    read_only = os.environ.get("DOCKHAND_READ_ONLY", "false").lower() in ("true", "1", "yes")
 
     missing = []
     if not url:
         missing.append("DOCKHAND_URL")
-    if not username:
-        missing.append("DOCKHAND_USERNAME")
-    if not password:
-        missing.append("DOCKHAND_PASSWORD")
+    if not api_token:
+        if not username:
+            missing.append("DOCKHAND_USERNAME (or DOCKHAND_API_TOKEN)")
+        if not password:
+            missing.append("DOCKHAND_PASSWORD (or DOCKHAND_API_TOKEN)")
 
     if missing:
         logger.error(
@@ -50,7 +53,14 @@ def _get_config() -> dict[str, Any]:
         )
         sys.exit(1)
 
-    return {"url": url, "username": username, "password": password, "verify_ssl": verify_ssl}
+    return {
+        "url": url,
+        "username": username,
+        "password": password,
+        "api_token": api_token,
+        "verify_ssl": verify_ssl,
+        "read_only": read_only,
+    }
 
 
 # ── Lifespan — client lifecycle management ───────────────────────────────
@@ -70,8 +80,16 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         username=config["username"],
         password=config["password"],
         verify_ssl=config["verify_ssl"],
+        api_token=config["api_token"],
+        read_only=config["read_only"],
     )
-    logger.info("Dockhand MCP server starting — target: %s (SSL verify: %s)", config["url"], config["verify_ssl"])
+    logger.info(
+        "Dockhand MCP server starting — target: %s (SSL verify: %s, read-only: %s, auth: %s)",
+        config["url"],
+        config["verify_ssl"],
+        config["read_only"],
+        "api_token" if config["api_token"] else "cookie_login",
+    )
     try:
         yield {"dockhand": client}
     finally:
