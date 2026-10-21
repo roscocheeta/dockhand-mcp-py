@@ -50,3 +50,35 @@ async def test_scan_image(mock_client):
         assert payload['scanner'] == 'trivy'
         assert result['jobId'] == '123'
 
+
+@pytest.mark.asyncio
+async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
+    from dockhand_mcp.tools.security import (
+        get_vulnerability_count,
+        scan_all_vulnerabilities,
+        list_image_scans,
+    )
+    with respx.mock:
+        count_route = respx.get("http://dockhand.test/api/security/vulnerabilities/count?env=1").mock(
+            return_value=Response(200, json={"critical": 1, "high": 3})
+        )
+        scan_all_route = respx.post("http://dockhand.test/api/security/vulnerabilities/scan?env=1").mock(
+            return_value=Response(200, json={"started": True})
+        )
+        list_scans_route = respx.get("http://dockhand.test/api/images/img1/scans?env=1").mock(
+            return_value=Response(200, json=[{"image": "nginx:latest", "status": "completed"}])
+        )
+
+        cnt = await get_vulnerability_count(1, mock_ctx)
+        assert count_route.called
+        assert cnt["critical"] == 1
+
+        sa = await scan_all_vulnerabilities(1, mock_ctx)
+        assert scan_all_route.called
+        assert sa["started"] is True
+
+        scans = await list_image_scans(1, "img1", mock_ctx)
+        assert list_scans_route.called
+        assert scans[0]["image"] == "nginx:latest"
+
+

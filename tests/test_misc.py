@@ -344,3 +344,67 @@ async def test_aligned_v1054_misc_routes(mock_client):
         assert au["enabled"] is True
 
 
+@pytest.mark.asyncio
+async def test_remaining_misc_tools(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import (
+        create_notification,
+        list_schedules,
+        list_templates,
+        list_labels,
+        set_preferences,
+        list_config_sets,
+        set_auto_update,
+        get_theme_settings,
+        update_theme_settings,
+        set_grid_preferences,
+    )
+    with respx.mock:
+        respx.post("http://dockhand.test/api/notifications").mock(
+            return_value=Response(
+                200,
+                json={"id": 2, "url": "https://hooks.slack.com/services/T1/B1/sec_tok"},
+            )
+        )
+        respx.get("http://dockhand.test/api/schedules").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "Daily"}])
+        )
+        respx.get("http://dockhand.test/api/templates").mock(
+            return_value=Response(200, json=[{"name": "wordpress"}])
+        )
+        respx.get("http://dockhand.test/api/labels?env=1").mock(
+            return_value=Response(200, json=["env=prod"])
+        )
+        respx.put("http://dockhand.test/api/profile/preferences").mock(
+            return_value=Response(200, json={"saved": True})
+        )
+        respx.get("http://dockhand.test/api/config-sets").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "common"}])
+        )
+        respx.put("http://dockhand.test/api/auto-update/web?env=1").mock(
+            return_value=Response(200, json={"enabled": False})
+        )
+        respx.get("http://dockhand.test/api/users/preferences/theme").mock(
+            return_value=Response(200, json={"theme": "dark"})
+        )
+        respx.put("http://dockhand.test/api/users/preferences/theme").mock(
+            return_value=Response(200, json={"theme": "light"})
+        )
+        respx.put("http://dockhand.test/api/preferences/grid").mock(
+            return_value=Response(200, json={"columns": 4})
+        )
+
+        notif = await create_notification("Slack", "https://hooks.slack.com/services/T1/B1/sec_tok", mock_ctx)
+        assert notif["url"] == "https://hooks.slack.com/services/T1/B1/***REDACTED***"
+        assert (await list_schedules(mock_ctx))[0]["name"] == "Daily"
+        assert (await list_templates(mock_ctx))[0]["name"] == "wordpress"
+        assert (await list_labels(1, mock_ctx)) == ["env=prod"]
+        assert (await set_preferences({"defaultEnv": 1}, mock_ctx))["saved"] is True
+        assert (await list_config_sets(mock_ctx))[0]["name"] == "common"
+        assert (await set_auto_update(1, "web", False, mock_ctx))["enabled"] is False
+        assert (await get_theme_settings(mock_ctx))["theme"] == "dark"
+        assert (await update_theme_settings("light", mock_ctx))["theme"] == "light"
+        assert (await set_grid_preferences({"columns": 4}, mock_ctx))["columns"] == 4
+
+
+
