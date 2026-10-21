@@ -249,3 +249,24 @@ async def test_get_stack_env_and_raw_redact_secrets(mock_client, mock_ctx):
         assert "tok_123" not in raw_res["content"]
 
 
+@pytest.mark.asyncio
+async def test_get_stack_deploy_log_truncates_output(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_deploy_log
+    with respx.mock:
+        route = respx.get("http://dockhand.test/api/stacks/web/deploys/7/log?env=1").mock(
+            return_value=Response(200, json={"log": "L" * 1000})
+        )
+        res = await get_stack_deploy_log(
+            environment_id=1,
+            name="web",
+            run_id=7,
+            ctx=mock_ctx,
+            max_bytes=200,
+        )
+        assert route.called
+        assert res["truncated"] is True
+        assert res["log"].startswith("L" * 200)
+        assert "[TRUNCATED AT 200 BYTES]" in res["log"]
+
+
+

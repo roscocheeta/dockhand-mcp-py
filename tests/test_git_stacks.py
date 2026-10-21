@@ -157,3 +157,26 @@ async def test_git_stack_redacts_webhook_secret_and_env_vars(mock_client):
         assert "db_pass_123" not in str(updated)
 
 
+@pytest.mark.asyncio
+async def test_create_and_update_git_credential_redact_secrets(mock_client):
+    from dockhand_mcp.tools.git_credentials import create_git_credential, update_git_credential
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        post_route = respx.post("http://dockhand.test/api/git/credentials").mock(
+            return_value=Response(200, json={"id": 1, "name": "gh", "password": "secret_pat", "privateKey": "ssh_key_pem"})
+        )
+        put_route = respx.put("http://dockhand.test/api/git/credentials/1").mock(
+            return_value=Response(200, json={"id": 1, "name": "gh", "password": "updated_pat"})
+        )
+
+        created = await create_git_credential(name="gh", username="git", ctx=mock_ctx, password="secret_pat")
+        assert post_route.called
+        assert created["password"] == "***REDACTED***"
+        assert created["privateKey"] == "***REDACTED***"
+
+        updated = await update_git_credential(credential_id=1, ctx=mock_ctx, password="updated_pat")
+        assert put_route.called
+        assert updated["password"] == "***REDACTED***"
+
+
+

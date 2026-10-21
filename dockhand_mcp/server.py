@@ -11,6 +11,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP, Context
 
@@ -52,6 +53,21 @@ def _get_config() -> dict[str, Any]:
             "Missing required environment variables: %s", ", ".join(missing)
         )
         sys.exit(1)
+
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+        logger.error(
+            "Invalid DOCKHAND_URL '%s': must start with http:// or https:// and include a host.",
+            url,
+        )
+        sys.exit(1)
+
+    if not verify_ssl:
+        logger.warning(
+            "SSL certificate verification is DISABLED (DOCKHAND_VERIFY_SSL=false). "
+            "Connections to %s are vulnerable to MITM attacks.",
+            url,
+        )
 
     return {
         "url": url,

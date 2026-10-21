@@ -118,7 +118,7 @@ class DockhandAuth:
             ) from exc
 
         if resp.status_code != 200:
-            detail = resp.text[:500] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAuthError(
                 f"Dockhand login failed (HTTP {resp.status_code}): {detail}"
             )
@@ -271,7 +271,7 @@ class DockhandClient:
             resp = await self._client.request(method, path, **kwargs)
 
         if resp.status_code >= 400:
-            detail = resp.text[:1000] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAPIError(resp.status_code, detail, method, path)
 
         return self._parse_sse_response(resp)
@@ -384,7 +384,7 @@ class DockhandClient:
 
         # Raise on non-2xx (after any retry).
         if resp.status_code >= 400:
-            detail = resp.text[:1000] if resp.text else resp.reason_phrase
+            detail = resp.text[:300] if resp.text else resp.reason_phrase
             raise DockhandAPIError(resp.status_code, detail, method, path)
 
         return resp

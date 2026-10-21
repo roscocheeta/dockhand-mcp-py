@@ -105,6 +105,15 @@ class TestErrorHandling:
         assert exc_info.value.method == "DELETE"
         assert "/api/containers/abc" in exc_info.value.path
 
+    async def test_api_error_truncates_large_body_to_300_chars(self, mock_client: DockhandClient, mock_router: respx.MockRouter):
+        """DockhandAPIError should truncate raw error bodies to 300 characters."""
+        mock_router.get("/api/error-trace").respond(500, text="X" * 1000)
+
+        with pytest.raises(DockhandAPIError) as exc_info:
+            await mock_client.get("/api/error-trace")
+
+        assert len(exc_info.value.detail) == 300
+
     async def test_plain_text_response(self, mock_client: DockhandClient, mock_router: respx.MockRouter):
         """Non-JSON responses should be returned as plain text."""
         mock_router.get("/api/changelog").respond(

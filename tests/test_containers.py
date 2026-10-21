@@ -298,3 +298,29 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
         assert pending_route.called
         assert pend["minimumReleaseAgeHours"] == 24
         assert pend["pendingUpdates"][0]["pinnedToDigest"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_container_exec_truncates_output(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import run_container_exec
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/containers/123/exec/run?envId=1").mock(
+            return_value=Response(
+                200,
+                json={"stdout": "A" * 500, "stderr": "B" * 500, "exitCode": 0},
+            )
+        )
+        res = await run_container_exec(
+            environment_id=1,
+            container_id="123",
+            cmd=["ls"],
+            ctx=mock_ctx,
+            max_bytes=100,
+        )
+        assert route.called
+        assert res["truncated"] is True
+        assert res["stdout"].startswith("A" * 100)
+        assert "[TRUNCATED AT 100 BYTES]" in res["stdout"]
+        assert res["stderr"].startswith("B" * 100)
+        assert "[TRUNCATED AT 100 BYTES]" in res["stderr"]
+

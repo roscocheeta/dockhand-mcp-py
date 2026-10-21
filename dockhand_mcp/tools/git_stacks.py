@@ -63,6 +63,7 @@ async def create_git_stack(
     This creates a stack linked to a Git repository. The compose file
     is pulled from the repo and deployed. For internal string stacks
     (no Git), use the `create_stack` tool instead.
+    ⚠️ SECURITY WARNING: Passing webhook_secret or secret env_vars exposes them in plain text within your chat history.
 
     Args:
         environment_id: Environment ID where the stack will be created.
@@ -106,7 +107,10 @@ async def create_git_stack(
     return redact_sensitive_dict(data)
 
 async def update_git_stack(stack_id: int, ctx: Context, branch: str | None = None, compose_path: str | None = None, env_vars: list | None = None) -> dict:
-    """Update a Git stack."""
+    """
+    Update a Git stack.
+    ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if branch is not None: body["branch"] = branch

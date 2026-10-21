@@ -52,6 +52,7 @@ async def create_environment(
     """
     Create a new Docker environment in Dockhand.
     connection_type can be 'socket', 'direct', 'hawser-standard', or 'hawser-edge'.
+    ⚠️ SECURITY WARNING: Passing tls_key or hawser_token exposes secrets in plain text within your chat history.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
@@ -102,7 +103,10 @@ async def update_environment(
     collect_activity: bool | None = None,
     collect_metrics: bool | None = None,
 ) -> dict:
-    """Update fields on an existing environment."""
+    """
+    Update fields on an existing environment.
+    ⚠️ SECURITY WARNING: Passing tls_key or hawser_token exposes secrets in plain text within your chat history.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if name is not None:
