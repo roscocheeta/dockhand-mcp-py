@@ -78,7 +78,7 @@ _SENSITIVE_DICT_FIELD_PATTERNS = (
 
 def is_secret_key(key: str) -> bool:
     """Return True if an environment variable key matches known secret patterns."""
-    if not key:
+    if not key or not isinstance(key, str):
         return False
     key_upper = key.strip().upper()
     return any(pattern in key_upper for pattern in _SECRET_KEY_PATTERNS)

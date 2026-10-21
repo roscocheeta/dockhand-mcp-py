@@ -35,6 +35,8 @@ class TestUtils:
         }
 
     def test_filter_labels(self):
+        assert filter_labels(None) is None
+        assert filter_labels({}) == {}
         labels = {
             "org.opencontainers.image.version": "1.0",
             "com.docker.compose.project": "dockhand",
@@ -49,6 +51,8 @@ class TestUtils:
         }
 
     def test_redact_env_secrets(self):
+        assert redact_env_secrets(None) is None
+        assert redact_env_secrets("not-a-list") == "not-a-list"
         env = [
             "DB_HOST=127.0.0.1",
             "DB_PASSWORD=supersecret",
@@ -148,6 +152,11 @@ class TestUtils:
         assert "my_secret_pw" not in redacted_yaml
         assert "123456" not in redacted_yaml
 
+    def test_redact_env_text_crlf(self):
+        crlf_text = "DB_HOST=postgres\r\nDB_PASSWORD=supersecret\r\n"
+        redacted = redact_env_text(crlf_text)
+        assert redacted == "DB_HOST=postgres\r\nDB_PASSWORD=***REDACTED***\r\n"
+
     def test_redact_url_credentials(self):
         assert redact_url_credentials("https://user:s3cr3t@example.com/hook") == "https://user:***REDACTED***@example.com/hook"
         assert redact_url_credentials("https://discord.com/api/webhooks/12345/abcdefg") == "https://discord.com/api/webhooks/12345/***REDACTED***"
@@ -188,4 +197,3 @@ class TestUtils:
         assert cleaned["envVars"][2] == {"key": "CUSTOM_VAR", "value": "***REDACTED***", "isSecret": True}
         assert cleaned["variables"]["PORT"] == "8080"
         assert cleaned["variables"]["JWT_SECRET"] == "***REDACTED***"
-
