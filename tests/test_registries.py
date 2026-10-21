@@ -36,6 +36,11 @@ async def test_list_registries_strips_passwords(mock_client):
         assert "Password" not in result[0]
         assert "password" not in result[0]
 
+        # Test non-list branch
+        respx.get("http://dockhand.test/api/registries?env=2").mock(return_value=Response(200, json={"error": "not found"}))
+        non_list_res = await list_registries(environment_id=2, ctx=mock_ctx)
+        assert non_list_res == {"error": "not found"}
+
 
 @pytest.mark.asyncio
 async def test_update_registry_strips_passwords(mock_client):
@@ -52,7 +57,15 @@ async def test_update_registry_strips_passwords(mock_client):
         route = respx.put("http://dockhand.test/api/registries/1?env=1").mock(
             return_value=Response(200, json=mock_resp)
         )
-        result = await update_registry(registry_id=1, name="GHCR", ctx=mock_ctx, environment_id=1)
+        result = await update_registry(
+            registry_id=1,
+            name="GHCR",
+            ctx=mock_ctx,
+            environment_id=1,
+            url="https://ghcr.io",
+            username="octocat",
+            password="ghp_super_secret_token",
+        )
         assert route.called
         assert result["Id"] == 1
         assert result["Name"] == "GHCR"
@@ -112,5 +125,3 @@ async def test_get_create_delete_test_registry_strip_passwords(mock_client):
         deleted = await delete_registry(environment_id=1, registry_id=2, ctx=mock_ctx)
         assert del_route.called
         assert deleted["deleted"] is True
-
-
