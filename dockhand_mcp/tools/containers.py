@@ -5,7 +5,7 @@ Container management tools (Read-only for Phase 2b).
 import json
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect
+from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect, redact_env_text
 
 
 def _compact_container(c: dict) -> dict:
@@ -396,12 +396,19 @@ async def rename_container_file(
     )
 
 async def get_container_compose(environment_id: int, container_id: str, ctx: Context) -> dict:
-    """Generate a docker-compose service definition from a running container's inspect."""
+    """Generate a docker-compose service definition from a running container's inspect. Secret env vars are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/containers/{encode_path(container_id)}/compose",
         params={"env": environment_id},
     )
+    if isinstance(data, dict):
+        data = dict(data)
+        if isinstance(data.get("compose"), str):
+            data["compose"] = redact_env_text(data["compose"])
+        if isinstance(data.get("composeFullEnv"), str):
+            data["composeFullEnv"] = redact_env_text(data["composeFullEnv"])
+    return data
 
 async def check_container_updates(environment_id: int, ctx: Context) -> dict:
     """Trigger a fresh image-update check across all containers in an environment."""

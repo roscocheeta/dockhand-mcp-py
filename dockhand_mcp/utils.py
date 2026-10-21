@@ -2,6 +2,7 @@
 Utility functions for the Dockhand MCP server.
 """
 
+import re
 from urllib.parse import quote
 from typing import Any
 
@@ -56,6 +57,32 @@ _SECRET_KEY_PATTERNS = (
     "PRIVATE", "CREDENTIAL", "AUTH", "PASS", "PWD",
 )
 
+# Dict field names (lowercased) that should never be treated as secret values
+_NON_SECRET_DICT_KEYS = {
+    "key", "name", "id", "type", "authtype", "auth_type", "authenabled",
+    "auth_enabled", "tokenprefix", "token_prefix", "injectedsecretkeys",
+    "secretproviderid", "secret_provider_id", "haspassword", "hassshkey",
+    "hastlskey", "hashawsertoken", "hascredentials", "iskey", "is_secret",
+    "issecret",
+}
+
+# Patterns that indicate a sensitive dictionary field name (lowercased)
+_SENSITIVE_DICT_FIELD_PATTERNS = (
+    "password", "secret", "token", "privatekey", "private_key",
+    "sshkey", "ssh_key", "tlskey", "tls_key", "passphrase",
+    "apikey", "api_key", "credential", "clientsecret", "client_secret",
+    "bindpassword", "bind_password", "webhooksecret", "webhook_secret",
+    "hawsertoken", "hawser_token",
+)
+
+
+def is_secret_key(key: str) -> bool:
+    """Return True if an environment variable key matches known secret patterns."""
+    if not key:
+        return False
+    key_upper = key.strip().upper()
+    return any(pattern in key_upper for pattern in _SECRET_KEY_PATTERNS)
+
 
 def redact_env_secrets(env_list: list | None) -> list | None:
     """
@@ -72,13 +99,146 @@ def redact_env_secrets(env_list: list | None) -> list | None:
         if not isinstance(entry, str) or "=" not in entry:
             redacted.append(entry)
             continue
-        key, _, value = entry.partition("=")
-        key_upper = key.upper()
-        if any(pattern in key_upper for pattern in _SECRET_KEY_PATTERNS):
+        key, _, _ = entry.partition("=")
+        if is_secret_key(key):
             redacted.append(f"{key}=***REDACTED***")
         else:
             redacted.append(entry)
     return redacted
+
+
+_ENV_LINE_RE = re.compile(
+    r"^(\s*(?:-\s*)?(?:export\s+)?)([\"']?)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*)$"
+)
+_YAML_KV_LINE_RE = re.compile(
+    r"^(\s+)([A-Za-z_][A-Za-z0-9_]*)(\s*:\s*)(\S.*)$"
+)
+
+
+def redact_env_text(raw_text: str | None) -> str | None:
+    """
+    Redact values of secret keys in raw .env content or Docker Compose YAML text.
+
+    Preserves comments, blank lines, indentation, and non-secret values while
+    replacing secret values with '***REDACTED***'.
+    """
+    if not raw_text or not isinstance(raw_text, str):
+        return raw_text
+
+    out_lines: list[str] = []
+    for line in raw_text.splitlines(keepends=True):
+        ending = ""
+        body = line
+        if body.endswith("\r\n"):
+            ending = "\r\n"
+            body = body[:-2]
+        elif body.endswith("\n"):
+            ending = "\n"
+            body = body[:-1]
+
+        stripped = body.lstrip()
+        if not stripped or stripped.startswith("#"):
+            out_lines.append(line)
+            continue
+
+        m_env = _ENV_LINE_RE.match(body)
+        if m_env:
+            prefix, open_q, key, sep, val = m_env.groups()
+            if is_secret_key(key):
+                close_q = open_q if open_q and val.endswith(open_q) else ""
+                out_lines.append(f"{prefix}{open_q}{key}{sep}***REDACTED***{close_q}{ending}")
+                continue
+
+        m_yaml = _YAML_KV_LINE_RE.match(body)
+        if m_yaml:
+            indent, key, sep, val = m_yaml.groups()
+            if is_secret_key(key) and not val.startswith(("{", "[")):
+                out_lines.append(f"{indent}{key}{sep}***REDACTED***{ending}")
+                continue
+
+        out_lines.append(line)
+
+    return "".join(out_lines)
+
+
+_URL_USERPASS_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*://[^/:@\s]+:)([^@\s]+)(@.*)$")
+_WEBHOOK_PATH_RE = re.compile(
+    r"(https?://[^/\s]+/(?:api/webhooks/\d+|services/[^/\s]+/[^/\s]+)/)([^\s/?#]+)",
+    re.IGNORECASE,
+)
+
+
+def redact_url_credentials(url: str) -> str:
+    """Redact credentials or tokens embedded in a URL or Apprise URI."""
+    if not isinstance(url, str) or "://" not in url:
+        return url
+
+    # Redact scheme://user:pass@host
+    m_up = _URL_USERPASS_RE.match(url)
+    if m_up:
+        url = f"{m_up.group(1)}***REDACTED***{m_up.group(3)}"
+
+    # Redact Discord / Slack webhook token segments in HTTP(S) URLs
+    url = _WEBHOOK_PATH_RE.sub(r"\1***REDACTED***", url)
+
+    # Non-HTTP Apprise schemes (e.g. discord://id/token, slack://a/b/c, tgram://bot/chat)
+    scheme, _, rest = url.partition("://")
+    if scheme.lower() not in ("http", "https", "ws", "wss", "tcp", "unix") and rest:
+        return f"{scheme}://***REDACTED***"
+
+    return url
+
+
+def redact_sensitive_dict(data: Any) -> Any:
+    """
+    Recursively redact sensitive fields in dicts/lists returned by Dockhand APIs.
+
+    Handles:
+    - Structured env var lists (`variables` / `envVars`: `[{'key': ..., 'value': ..., 'isSecret': ...}]`)
+    - Dict fields whose names indicate secrets (`webhookSecret`, `clientSecret`, `bindPassword`, etc.)
+    - Embedded credentials in notification/webhook URLs (`urls`, `webhookUrl`)
+    """
+    if isinstance(data, list):
+        return [redact_sensitive_dict(item) for item in data]
+
+    if not isinstance(data, dict):
+        return data
+
+    # Check if this dict itself is a {key, value} env variable entry
+    if "key" in data and "value" in data and isinstance(data.get("key"), str):
+        copied = dict(data)
+        if copied.get("isSecret") is True or is_secret_key(copied["key"]):
+            if copied.get("value") not in (None, "", "***", "***REDACTED***"):
+                copied["value"] = "***REDACTED***"
+        return copied
+
+    result: dict[str, Any] = {}
+    for k, v in data.items():
+        k_lower = str(k).lower()
+
+        if isinstance(v, (dict, list)):
+            if k_lower in ("urls", "webhook_urls", "webhookurls") and isinstance(v, list):
+                result[k] = [redact_url_credentials(u) if isinstance(u, str) else redact_sensitive_dict(u) for u in v]
+            else:
+                result[k] = redact_sensitive_dict(v)
+            continue
+
+        if isinstance(v, str):
+            if k_lower in ("url", "webhookurl", "webhook_url") and "://" in v:
+                result[k] = redact_url_credentials(v)
+                continue
+
+            if (
+                k_lower not in _NON_SECRET_DICT_KEYS
+                and any(pat in k_lower for pat in _SENSITIVE_DICT_FIELD_PATTERNS)
+                and v not in ("", "***", "***REDACTED***", "********")
+            ):
+                result[k] = "***REDACTED***"
+                continue
+
+        result[k] = v
+
+    return result
 
 
 def clean_container_inspect(c: dict) -> dict:

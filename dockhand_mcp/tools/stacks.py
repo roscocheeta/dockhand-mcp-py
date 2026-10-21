@@ -4,7 +4,7 @@ Stack (Docker Compose) management tools.
 
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict
 
 
 def _compact_stack(s: dict) -> dict:
@@ -126,20 +126,28 @@ async def update_stack_compose(
     )
 
 async def get_stack_env(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the structured environment variables (.env) for a stack."""
+    """Get the structured environment variables (.env) for a stack. Secret values are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/env", 
         params={"env": environment_id}
     )
+    return redact_sensitive_dict(data)
 
 async def get_stack_env_raw(environment_id: int, name: str, ctx: Context) -> dict:
-    """Get the raw .env file contents for a stack."""
+    """Get the raw .env file contents for a stack. Secret values are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/env/raw", 
         params={"env": environment_id}
     )
+    if isinstance(data, dict) and isinstance(data.get("content"), str):
+        data = dict(data)
+        data["content"] = redact_env_text(data["content"])
+        return data
+    if isinstance(data, str):
+        return redact_env_text(data)
+    return data
 
 async def update_stack_env_raw(
     environment_id: int, 

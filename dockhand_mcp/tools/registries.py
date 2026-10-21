@@ -85,11 +85,12 @@ async def update_registry(
     if password:
         body["password"] = password
         
-    return await client.put(
+    reg = await client.put(
         f"/api/registries/{encode_path(str(registry_id))}", 
         json=body, 
         params={"env": environment_id}
     )
+    return _compact_registry(reg) if isinstance(reg, dict) else reg
 
 async def delete_registry(environment_id: int, registry_id: int, ctx: Context) -> dict:
     """Delete a Docker registry configuration."""

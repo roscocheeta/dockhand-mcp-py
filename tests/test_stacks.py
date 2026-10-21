@@ -207,3 +207,45 @@ async def test_get_stack_stats_and_path_hints(mock_client, mock_ctx):
         assert hints_route.called
         assert hints["workingDir"] == "/opt/stacks/web"
 
+
+@pytest.mark.asyncio
+async def test_get_stack_env_and_raw_redact_secrets(mock_client, mock_ctx):
+    from dockhand_mcp.tools.stacks import get_stack_env, get_stack_env_raw
+    with respx.mock:
+        env_route = respx.get("http://dockhand.test/api/stacks/web/env?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "variables": {"APP_ENV": "prod", "DB_PASSWORD": "plain_password"},
+                    "envVars": [
+                        {"key": "REDIS_HOST", "value": "redis", "isSecret": False},
+                        {"key": "API_SECRET", "value": "top_secret", "isSecret": False},
+                        {"key": "CUSTOM_VAL", "value": "marked_secret", "isSecret": True},
+                    ],
+                },
+            )
+        )
+        raw_route = respx.get("http://dockhand.test/api/stacks/web/env/raw?env=1").mock(
+            return_value=Response(
+                200,
+                json={"content": "APP_ENV=prod\nDB_PASSWORD=plain_password\nAPI_TOKEN=tok_123\n"},
+            )
+        )
+
+        env_res = await get_stack_env(environment_id=1, name="web", ctx=mock_ctx)
+        assert env_route.called
+        assert env_res["variables"]["APP_ENV"] == "prod"
+        assert env_res["variables"]["DB_PASSWORD"] == "***REDACTED***"
+        assert env_res["envVars"][0]["value"] == "redis"
+        assert env_res["envVars"][1]["value"] == "***REDACTED***"
+        assert env_res["envVars"][2]["value"] == "***REDACTED***"
+
+        raw_res = await get_stack_env_raw(environment_id=1, name="web", ctx=mock_ctx)
+        assert raw_route.called
+        assert "APP_ENV=prod" in raw_res["content"]
+        assert "DB_PASSWORD=***REDACTED***" in raw_res["content"]
+        assert "API_TOKEN=***REDACTED***" in raw_res["content"]
+        assert "plain_password" not in raw_res["content"]
+        assert "tok_123" not in raw_res["content"]
+
+

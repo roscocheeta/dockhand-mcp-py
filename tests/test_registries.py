@@ -35,3 +35,29 @@ async def test_list_registries_strips_passwords(mock_client):
         # The crucial security assertion: password must NOT be in the compact output
         assert "Password" not in result[0]
         assert "password" not in result[0]
+
+
+@pytest.mark.asyncio
+async def test_update_registry_strips_passwords(mock_client):
+    from dockhand_mcp.tools.registries import update_registry
+    mock_ctx = MockContext(mock_client)
+    mock_resp = {
+        "id": 1,
+        "name": "GHCR",
+        "url": "https://ghcr.io",
+        "username": "octocat",
+        "password": "ghp_super_secret_token",
+    }
+    with respx.mock:
+        route = respx.put("http://dockhand.test/api/registries/1?env=1").mock(
+            return_value=Response(200, json=mock_resp)
+        )
+        result = await update_registry(registry_id=1, name="GHCR", ctx=mock_ctx, environment_id=1)
+        assert route.called
+        assert result["Id"] == 1
+        assert result["Name"] == "GHCR"
+        assert result["Username"] == "octocat"
+        assert "password" not in result
+        assert "Password" not in result
+        assert "ghp_super_secret_token" not in str(result)
+
