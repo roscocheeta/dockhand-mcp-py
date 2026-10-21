@@ -348,13 +348,30 @@ async def get_stack_deploy_history(environment_id: int, name: str, ctx: Context)
         params={"env": environment_id}
     )
 
-async def get_stack_deploy_log(environment_id: int, name: str, run_id: int, ctx: Context) -> dict:
-    """Get the raw deployment log text for a specific stack deploy run."""
+async def get_stack_deploy_log(
+    environment_id: int,
+    name: str,
+    run_id: int,
+    ctx: Context,
+    max_bytes: int = 20480,
+) -> dict:
+    """Get the raw deployment log text for a specific stack deploy run (truncated to max_bytes, default 20KB)."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    data = await client.get(
         f"/api/stacks/{encode_path(name)}/deploys/{encode_path(str(run_id))}/log",
         params={"env": environment_id}
     )
+    if max_bytes and max_bytes > 0:
+        if isinstance(data, dict):
+            data = dict(data)
+            for key in ("log", "output", "content"):
+                val = data.get(key)
+                if isinstance(val, str) and len(val) > max_bytes:
+                    data[key] = val[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
+                    data["truncated"] = True
+        elif isinstance(data, str) and len(data) > max_bytes:
+            return data[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
+    return data
 
 async def get_stack_stats(environment_id: int, ctx: Context) -> list:
     """Return a CPU/memory/network/block-IO stats snapshot per compose stack in an environment."""

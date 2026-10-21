@@ -238,3 +238,19 @@ class TestBearerTokenAuth:
         assert cfg["api_token"] == "dh_tok_abc"
         assert cfg["read_only"] is True
 
+    def test_get_config_rejects_invalid_url_scheme_and_warns_ssl_off(self, monkeypatch, caplog):
+        """_get_config() should exit on non-http(s) URLs and log a warning when DOCKHAND_VERIFY_SSL=false."""
+        from dockhand_mcp.server import _get_config
+        monkeypatch.setenv("DOCKHAND_API_TOKEN", "dh_tok_abc")
+        monkeypatch.setenv("DOCKHAND_URL", "ftp://dockhand.example.com")
+        with pytest.raises(SystemExit):
+            _get_config()
+
+        monkeypatch.setenv("DOCKHAND_URL", "https://dockhand.example.com")
+        monkeypatch.setenv("DOCKHAND_VERIFY_SSL", "false")
+        with caplog.at_level("WARNING"):
+            cfg = _get_config()
+        assert cfg["verify_ssl"] is False
+        assert "SSL certificate verification is DISABLED" in caplog.text
+
+

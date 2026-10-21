@@ -25,12 +25,12 @@ async def update_tag(tag_id: int, name: str | None = None, color: str | None = N
         payload['color'] = color
     if icon is not None:
         payload['icon'] = icon
-    return await client.put(f'/api/tags/{tag_id}', json=payload)
+    return await client.put(f'/api/tags/{encode_path(str(tag_id))}', json=payload)
 
 async def delete_tag(tag_id: int, ctx: Context = None) -> dict:
     """Delete a tag from the global catalog (requires admin privileges)."""
     client = ctx.request_context.lifespan_context['dockhand']
-    return await client.delete(f'/api/tags/{tag_id}')
+    return await client.delete(f'/api/tags/{encode_path(str(tag_id))}')
 
 async def get_stack_tags(environment_id: int, name: str, ctx: Context = None) -> list[int]:
     """Get the tag IDs assigned to a stack."""
