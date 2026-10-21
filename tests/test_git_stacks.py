@@ -119,3 +119,41 @@ async def test_create_git_stack_full_options(mock_client):
         assert payload["envVars"] == [{"key": "APP_ENV", "value": "prod", "isSecret": False}]
         assert result["success"] is True
 
+
+@pytest.mark.asyncio
+async def test_git_stack_redacts_webhook_secret_and_env_vars(mock_client):
+    from dockhand_mcp.tools.git_stacks import get_git_stack, update_git_stack
+    mock_ctx = MockContext(mock_client)
+    mock_stack_payload = {
+        "id": 10,
+        "stackName": "sec-stack",
+        "webhookEnabled": True,
+        "webhookSecret": "plain_webhook_secret",
+        "envVars": [
+            {"key": "APP_MODE", "value": "production", "isSecret": False},
+            {"key": "DB_PASSWORD", "value": "db_pass_123", "isSecret": False},
+            {"key": "INTERNAL_ID", "value": "sec_val", "isSecret": True},
+        ],
+    }
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/git/stacks/10").mock(
+            return_value=Response(200, json=mock_stack_payload)
+        )
+        put_route = respx.put("http://dockhand.test/api/git/stacks/10").mock(
+            return_value=Response(200, json=mock_stack_payload)
+        )
+
+        fetched = await get_git_stack(stack_id=10, ctx=mock_ctx)
+        assert get_route.called
+        assert fetched["webhookSecret"] == "***REDACTED***"
+        assert fetched["envVars"][0]["value"] == "production"
+        assert fetched["envVars"][1]["value"] == "***REDACTED***"
+        assert fetched["envVars"][2]["value"] == "***REDACTED***"
+
+        updated = await update_git_stack(stack_id=10, ctx=mock_ctx, branch="main")
+        assert put_route.called
+        assert updated["webhookSecret"] == "***REDACTED***"
+        assert "plain_webhook_secret" not in str(updated)
+        assert "db_pass_123" not in str(updated)
+
+

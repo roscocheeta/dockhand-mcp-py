@@ -176,10 +176,26 @@ async def test_secret_provider_crud(mock_client):
     )
     with respx.mock:
         create_route = respx.post("http://dockhand.test/api/secret-providers").mock(
-            return_value=Response(200, json={"id": 5, "name": "psono-prod", "type": "psono"})
+            return_value=Response(
+                200,
+                json={
+                    "id": 5,
+                    "name": "psono-prod",
+                    "type": "psono",
+                    "config": {"serverUrl": "https://psono.example.com", "secretKey": "psono_secret_abc"},
+                },
+            )
         )
         update_route = respx.put("http://dockhand.test/api/secret-providers/5").mock(
-            return_value=Response(200, json={"id": 5, "name": "psono-updated", "type": "psono"})
+            return_value=Response(
+                200,
+                json={
+                    "id": 5,
+                    "name": "psono-updated",
+                    "type": "psono",
+                    "config": {"apiKeyId": "key_id_1", "apiKeySecret": "raw_api_secret"},
+                },
+            )
         )
         delete_route = respx.delete("http://dockhand.test/api/secret-providers/5").mock(
             return_value=Response(200, json={"success": True})
@@ -193,6 +209,8 @@ async def test_secret_provider_crud(mock_client):
         )
         assert create_route.called
         assert created["type"] == "psono"
+        assert created["config"]["serverUrl"] == "https://psono.example.com"
+        assert created["config"]["secretKey"] == "***REDACTED***"
 
         updated = await update_secret_provider(
             provider_id=5,
@@ -203,6 +221,7 @@ async def test_secret_provider_crud(mock_client):
         payload = json.loads(update_route.calls.last.request.content)
         assert payload == {"name": "psono-updated"}
         assert updated["name"] == "psono-updated"
+        assert updated["config"]["apiKeySecret"] == "***REDACTED***"
 
         deleted = await delete_secret_provider(provider_id=5, ctx=mock_ctx)
         assert delete_route.called
@@ -233,3 +252,46 @@ async def test_execute_batch_operation(mock_client):
         assert payload["entityType"] == "stacks"
         assert payload["operation"] == "restart"
         assert res["summary"]["success"] == 2
+
+
+@pytest.mark.asyncio
+async def test_notifications_redact_secrets_and_urls(mock_client):
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import list_notifications, get_notification
+    with respx.mock:
+        list_route = respx.get("http://dockhand.test/api/notifications").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {
+                        "id": 1,
+                        "name": "Discord Alert",
+                        "type": "discord",
+                        "config": {
+                            "webhookUrl": "https://discord.com/api/webhooks/111222/secret_webhook_tok",
+                            "smtpPassword": "smtp_pw_value",
+                        },
+                    }
+                ],
+            )
+        )
+        get_route = respx.get("http://dockhand.test/api/notifications/1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 1,
+                    "name": "Apprise Channel",
+                    "config": {"urls": ["discord://111222/secret_webhook_tok"]},
+                },
+            )
+        )
+
+        items = await list_notifications(ctx=mock_ctx)
+        assert list_route.called
+        assert items[0]["config"]["webhookUrl"] == "https://discord.com/api/webhooks/111222/***REDACTED***"
+        assert items[0]["config"]["smtpPassword"] == "***REDACTED***"
+
+        single = await get_notification(notification_id=1, ctx=mock_ctx)
+        assert get_route.called
+        assert single["config"]["urls"] == ["discord://***REDACTED***"]
+

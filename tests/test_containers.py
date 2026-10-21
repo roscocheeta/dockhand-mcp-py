@@ -252,7 +252,14 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
     )
     with respx.mock:
         compose_route = respx.get("http://dockhand.test/api/containers/123/compose?env=1").mock(
-            return_value=Response(200, json={"compose": "services:\n  web:\n    image: nginx\n", "serviceName": "web"})
+            return_value=Response(
+                200,
+                json={
+                    "compose": "services:\n  web:\n    image: nginx\n    environment:\n      - DB_PASSWORD=secret_db_pw\n      - APP_ENV=prod\n",
+                    "composeFullEnv": "services:\n  web:\n    environment:\n      API_TOKEN: super_secret_token\n",
+                    "serviceName": "web",
+                },
+            )
         )
         check_route = respx.post("http://dockhand.test/api/containers/check-updates?env=1").mock(
             return_value=Response(
@@ -277,6 +284,11 @@ async def test_container_compose_and_updates(mock_client, mock_ctx):
         comp = await get_container_compose(environment_id=1, container_id="123", ctx=mock_ctx)
         assert compose_route.called
         assert comp["serviceName"] == "web"
+        assert "DB_PASSWORD=***REDACTED***" in comp["compose"]
+        assert "APP_ENV=prod" in comp["compose"]
+        assert "secret_db_pw" not in comp["compose"]
+        assert "API_TOKEN: ***REDACTED***" in comp["composeFullEnv"]
+        assert "super_secret_token" not in comp["composeFullEnv"]
 
         chk = await check_container_updates(environment_id=1, ctx=mock_ctx)
         assert check_route.called

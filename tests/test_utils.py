@@ -1,5 +1,15 @@
 import pytest
-from dockhand_mcp.utils import redact_env_secrets, clean_container_inspect, strip_nulls, filter_labels, truncate_id
+from dockhand_mcp.utils import (
+    redact_env_secrets,
+    is_secret_key,
+    redact_env_text,
+    redact_url_credentials,
+    redact_sensitive_dict,
+    clean_container_inspect,
+    strip_nulls,
+    filter_labels,
+    truncate_id,
+)
 
 class TestUtils:
     def test_truncate_id(self):
@@ -96,3 +106,86 @@ class TestUtils:
         assert cleaned["image"] == "111222333444"
         assert cleaned["config"]["env"][0] == "AWS_SECRET_ACCESS_KEY=***REDACTED***"
         assert cleaned["config"]["labels"] == {"safe": "yes"}
+
+    def test_is_secret_key(self):
+        assert is_secret_key("DB_PASSWORD") is True
+        assert is_secret_key("api_key") is True
+        assert is_secret_key("WEBHOOK_SECRET") is True
+        assert is_secret_key("auth_token") is True
+        assert is_secret_key("DB_HOST") is False
+        assert is_secret_key("PORT") is False
+
+    def test_redact_env_text_dotenv_and_yaml(self):
+        dotenv_text = (
+            "# Comment line\n"
+            "DB_HOST=postgres\n"
+            "DB_PASSWORD=supersecret\n"
+            "export API_TOKEN=xyz123\n"
+        )
+        redacted_dotenv = redact_env_text(dotenv_text)
+        assert "# Comment line" in redacted_dotenv
+        assert "DB_HOST=postgres" in redacted_dotenv
+        assert "DB_PASSWORD=***REDACTED***" in redacted_dotenv
+        assert "export API_TOKEN=***REDACTED***" in redacted_dotenv
+        assert "supersecret" not in redacted_dotenv
+        assert "xyz123" not in redacted_dotenv
+
+        yaml_text = (
+            "services:\n"
+            "  app:\n"
+            "    image: myapp:latest\n"
+            "    environment:\n"
+            "      - DB_HOST=postgres\n"
+            "      - DB_PASSWORD=my_secret_pw\n"
+            "      API_KEY: \"123456\"\n"
+            "      APP_PORT: 8080\n"
+        )
+        redacted_yaml = redact_env_text(yaml_text)
+        assert "- DB_HOST=postgres" in redacted_yaml
+        assert "- DB_PASSWORD=***REDACTED***" in redacted_yaml
+        assert "API_KEY: ***REDACTED***" in redacted_yaml
+        assert "APP_PORT: 8080" in redacted_yaml
+        assert "my_secret_pw" not in redacted_yaml
+        assert "123456" not in redacted_yaml
+
+    def test_redact_url_credentials(self):
+        assert redact_url_credentials("https://user:s3cr3t@example.com/hook") == "https://user:***REDACTED***@example.com/hook"
+        assert redact_url_credentials("https://discord.com/api/webhooks/12345/abcdefg") == "https://discord.com/api/webhooks/12345/***REDACTED***"
+        assert redact_url_credentials("https://hooks.slack.com/services/T000/B000/XXXX") == "https://hooks.slack.com/services/T000/B000/***REDACTED***"
+        assert redact_url_credentials("discord://12345/secret_tok") == "discord://***REDACTED***"
+        assert redact_url_credentials("https://example.com/public/status") == "https://example.com/public/status"
+
+    def test_redact_sensitive_dict(self):
+        payload = {
+            "id": 1,
+            "name": "my-stack",
+            "webhookSecret": "wh_sec_123",
+            "config": {
+                "serverUrl": "https://vault.example.com",
+                "secretKey": "vault_key_abc",
+                "webhookUrl": "https://discord.com/api/webhooks/999/secret_hook_token",
+            },
+            "envVars": [
+                {"key": "DB_HOST", "value": "localhost", "isSecret": False},
+                {"key": "DB_PASSWORD", "value": "pw123", "isSecret": False},
+                {"key": "CUSTOM_VAR", "value": "hidden_val", "isSecret": True},
+            ],
+            "variables": {
+                "PORT": "8080",
+                "JWT_SECRET": "jwt_super_secret",
+            },
+        }
+        cleaned = redact_sensitive_dict(payload)
+        assert cleaned["id"] == 1
+        assert cleaned["name"] == "my-stack"
+        assert cleaned["webhookSecret"] == "***REDACTED***"
+        assert cleaned["config"]["serverUrl"] == "https://vault.example.com"
+        assert cleaned["config"]["secretKey"] == "***REDACTED***"
+        assert cleaned["config"]["webhookUrl"] == "https://discord.com/api/webhooks/999/***REDACTED***"
+        # Check envVars items: key names preserved, secret values redacted
+        assert cleaned["envVars"][0] == {"key": "DB_HOST", "value": "localhost", "isSecret": False}
+        assert cleaned["envVars"][1] == {"key": "DB_PASSWORD", "value": "***REDACTED***", "isSecret": False}
+        assert cleaned["envVars"][2] == {"key": "CUSTOM_VAR", "value": "***REDACTED***", "isSecret": True}
+        assert cleaned["variables"]["PORT"] == "8080"
+        assert cleaned["variables"]["JWT_SECRET"] == "***REDACTED***"
+
