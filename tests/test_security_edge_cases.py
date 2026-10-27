@@ -148,6 +148,7 @@ class TestSecurityEdgeCases:
                 "serverUrl": "https://vault.corp.internal",
                 "webhookUrl": "https://discord.com/api/webhooks/111/secret_token_111",
                 "apiKey": "raw_api_key_val",
+                "ageKey": "AGE-SECRET-KEY-1...",
             },
             # Dockhand structured envVars shape
             "envVars": [
@@ -182,6 +183,7 @@ class TestSecurityEdgeCases:
         assert cleaned["config"]["serverUrl"] == "https://vault.corp.internal"
         assert cleaned["config"]["webhookUrl"] == "https://discord.com/api/webhooks/111/***REDACTED***"
         assert cleaned["config"]["apiKey"] == "***REDACTED***"
+        assert cleaned["config"]["ageKey"] == "***REDACTED***"
 
         # Structured envVars: DB_HOST preserved, DB_PASSWORD redacted, CUSTOM_VAR (isSecret=True) redacted
         assert cleaned["envVars"][0] == {"key": "DB_HOST", "value": "10.0.0.1", "isSecret": False}

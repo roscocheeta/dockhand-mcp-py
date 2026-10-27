@@ -72,7 +72,7 @@ _SENSITIVE_DICT_FIELD_PATTERNS = (
     "sshkey", "ssh_key", "tlskey", "tls_key", "passphrase",
     "apikey", "api_key", "credential", "clientsecret", "client_secret",
     "bindpassword", "bind_password", "webhooksecret", "webhook_secret",
-    "hawsertoken", "hawser_token",
+    "hawsertoken", "hawser_token", "agekey", "age_key",
 )
 
 
