@@ -406,5 +406,114 @@ async def test_remaining_misc_tools(mock_client):
         assert (await update_theme_settings("light", mock_ctx))["theme"] == "light"
         assert (await set_grid_preferences({"columns": 4}, mock_ctx))["columns"] == 4
 
+@pytest.mark.asyncio
+async def test_language_preference(mock_client):
+    from dockhand_mcp.tools.misc import get_language_preference, set_language_preference
+    import json
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "en"})
+        )
+        put_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "fr-FR"})
+        )
+
+        res = await get_language_preference(mock_ctx)
+        assert get_route.called
+        assert res["language"] == "en"
+
+        updated = await set_language_preference(mock_ctx, language="fr-FR")
+        assert put_route.called
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload["language"] == "fr-FR"
+        assert updated["language"] == "fr-FR"
+
+        # Setting to None follows browser language
+        respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": None})
+        )
+        reset = await set_language_preference(mock_ctx, language=None)
+        assert reset["language"] is None
 
 
+@pytest.mark.asyncio
+async def test_pinned_digest_report(mock_client):
+    from dockhand_mcp.tools.misc import get_pinned_digest_report, set_pinned_digest_report
+    import json
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/settings/pinned-digest-report").mock(
+            return_value=Response(200, json={"enabled": True})
+        )
+        post_route = respx.post("http://dockhand.test/api/settings/pinned-digest-report").mock(
+            return_value=Response(200, json={"success": True})
+        )
+
+        res = await get_pinned_digest_report(mock_ctx)
+        assert get_route.called
+        assert res["enabled"] is True
+
+        updated = await set_pinned_digest_report(False, mock_ctx)
+        assert post_route.called
+        payload = json.loads(post_route.calls.last.request.content)
+        assert payload["enabled"] is False
+        assert updated["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_sops_secret_provider_and_redaction(mock_client):
+    from dockhand_mcp.tools.misc import create_secret_provider, update_secret_provider
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        create_route = respx.post("http://dockhand.test/api/secret-providers").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 10,
+                    "name": "SOPS Production",
+                    "type": "sops",
+                    "config": {
+                        "ageKey": "AGE-SECRET-KEY-1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+                    },
+                },
+            )
+        )
+        update_route = respx.put("http://dockhand.test/api/secret-providers/10").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 10,
+                    "name": "SOPS Production Updated",
+                    "type": "sops",
+                    "config": {
+                        "ageKey": "AGE-SECRET-KEY-2WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+                    },
+                },
+            )
+        )
+
+        created = await create_secret_provider(
+            name="SOPS Production",
+            type="sops",
+            config={"ageKey": "AGE-SECRET-KEY-1..."},
+            ctx=mock_ctx,
+        )
+        assert create_route.called
+        assert created["id"] == 10
+        assert created["type"] == "sops"
+        assert created["config"]["ageKey"] == "***REDACTED***"
+
+        updated = await update_secret_provider(
+            10,
+            mock_ctx,
+            name="SOPS Production Updated",
+            type="sops",
+            config={"ageKey": "AGE-SECRET-KEY-2..."},
+        )
+        assert update_route.called
+        assert updated["name"] == "SOPS Production Updated"
+        assert updated["config"]["ageKey"] == "***REDACTED***"

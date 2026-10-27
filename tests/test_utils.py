@@ -173,6 +173,8 @@ class TestUtils:
                 "serverUrl": "https://vault.example.com",
                 "secretKey": "vault_key_abc",
                 "webhookUrl": "https://discord.com/api/webhooks/999/secret_hook_token",
+                "ageKey": "AGE-SECRET-KEY-1PQ...",
+                "age_key": "AGE-SECRET-KEY-2PQ...",
             },
             "envVars": [
                 {"key": "DB_HOST", "value": "localhost", "isSecret": False},
@@ -191,6 +193,8 @@ class TestUtils:
         assert cleaned["config"]["serverUrl"] == "https://vault.example.com"
         assert cleaned["config"]["secretKey"] == "***REDACTED***"
         assert cleaned["config"]["webhookUrl"] == "https://discord.com/api/webhooks/999/***REDACTED***"
+        assert cleaned["config"]["ageKey"] == "***REDACTED***"
+        assert cleaned["config"]["age_key"] == "***REDACTED***"
         # Check envVars items: key names preserved, secret values redacted
         assert cleaned["envVars"][0] == {"key": "DB_HOST", "value": "localhost", "isSecret": False}
         assert cleaned["envVars"][1] == {"key": "DB_PASSWORD", "value": "***REDACTED***", "isSecret": False}
