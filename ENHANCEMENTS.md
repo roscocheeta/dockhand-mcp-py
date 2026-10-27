@@ -9,7 +9,7 @@ This document tracks planned enhancements, future phases, and outstanding techni
 
 ## 2. API Coverage & Testing
 - [x] Add unit tests for core auth, client, containers, environments, registries, git_stacks, and stacks tools.
-- [ ] Add unit tests for `misc.py`, `users.py`, `audit.py`, `dashboard.py`.
+- [x] Add unit tests for `misc.py`, `users.py`, `audit.py`, `dashboard.py`.
 
 ## 3. Tool Optimization
 - [x] Compact list responses, truncate IDs (12 chars), and filter noisy Docker labels.
@@ -62,3 +62,8 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 - [x] **Secret Providers (Psono & CRUD):** Added `create_secret_provider`, `update_secret_provider`, and `delete_secret_provider` supporting Psono and other external secret providers.
 - [x] **Batch Operations, Passkeys & Environment Reports:** Added `execute_batch_operation` (`/api/batch`), `list_passkeys` / `delete_passkey` (`/api/profile/passkeys`), and environment state report tools (`get_environment_report`, `get_environment_report_settings`, `update_environment_report_settings`).
 
+### Dockhand v1.0.55 Enhancements
+- [x] **Scheduled Container Actions:** Added `get_container_scheduled_actions` and `set_container_scheduled_actions` (`/api/scheduled-actions/{containerName}`) for start/stop on schedule (HH:MM or cron).
+- [x] **SOPS (age) Secret Provider:** Supported SOPS age key decryption (`sops` provider type) with automatic `ageKey` / `age_key` sensitive redaction.
+- [x] **Interface Language Preference:** Added `get_language_preference` and `set_language_preference` (`/api/preferences/language`).
+- [x] **Pinned Digest Report Configuration:** Added `get_pinned_digest_report` and `set_pinned_digest_report` (`/api/settings/pinned-digest-report`).

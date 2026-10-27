@@ -32,7 +32,7 @@ The server exposes the following tools to the LLM agent:
 ### Containers
 - **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`
 - **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`, `chown_container_file`, `create_container_path`
-- **Write & Updates**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag), `check_container_updates`, `get_pending_container_updates`
+- **Write & Updates**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag), `check_container_updates`, `get_pending_container_updates`, `get_container_scheduled_actions`, `set_container_scheduled_actions`
 - **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`, `run_container_exec`
 
 ### Stacks (Docker Compose)
@@ -59,10 +59,10 @@ The server exposes the following tools to the LLM agent:
 - **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
 
 ### Automation & Misc
-- **Schedules, Updates & Batch:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`, `get_minimum_release_age`, `set_minimum_release_age`, `execute_batch_operation`
+- **Schedules, Updates & Batch:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`, `get_minimum_release_age`, `set_minimum_release_age`, `execute_batch_operation`, `get_pinned_digest_report`, `set_pinned_digest_report`
 - **Backups:** `delete_snapshots`
 - **Alerts & Scans:** `list_notifications`, `get_notification`, `create_notification`, `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image`
-- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
+- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_language_preference`, `set_language_preference`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
 
 ## Security & Privacy Note
 

@@ -438,6 +438,43 @@ async def get_pending_container_updates(environment_id: int, ctx: Context) -> di
         params={"env": environment_id},
     )
 
+async def get_container_scheduled_actions(
+    environment_id: int,
+    container_name: str,
+    ctx: Context,
+) -> dict:
+    """Get a container's scheduled start and stop times (HH:MM or cron), along with status, source ('ui' vs 'label'), and error state."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get(
+        f"/api/scheduled-actions/{encode_path(container_name)}",
+        params={"env": environment_id},
+    )
+
+async def set_container_scheduled_actions(
+    environment_id: int,
+    container_name: str,
+    ctx: Context,
+    start_at: str | None = None,
+    stop_at: str | None = None,
+    enabled: bool | None = None,
+) -> dict:
+    """Set or remove a container's scheduled start and stop times (HH:MM every day, or a 5-field cron expression).
+
+    Setting both start_at and stop_at to null/empty removes the schedule.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    body: dict[str, Any] = {
+        "startAt": start_at,
+        "stopAt": stop_at,
+    }
+    if enabled is not None:
+        body["enabled"] = enabled
+    return await client.put(
+        f"/api/scheduled-actions/{encode_path(container_name)}",
+        json=body,
+        params={"env": environment_id},
+    )
+
 def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_containers)
     mcp.add_tool(get_container)
@@ -467,3 +504,5 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_container_compose)
     mcp.add_tool(check_container_updates)
     mcp.add_tool(get_pending_container_updates)
+    mcp.add_tool(get_container_scheduled_actions)
+    mcp.add_tool(set_container_scheduled_actions)

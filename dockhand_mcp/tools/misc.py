@@ -189,7 +189,7 @@ async def set_minimum_release_age(hours: int, ctx: Context) -> dict:
     return await client.post("/api/settings/minimum-release-age", json={"hours": hours})
 
 async def create_secret_provider(name: str, type: str, config: dict, ctx: Context) -> dict:
-    """Create a secret provider (e.g. Vault, Infisical, Doppler, 1Password Connect, Psono).
+    """Create a secret provider (e.g. Vault, Infisical, Doppler, 1Password Connect, Psono, SOPS).
 
     SECURITY WARNING: The config parameter may contain sensitive credentials in plain text.
     """
@@ -244,6 +244,26 @@ async def execute_batch_operation(
     }
     return await client.post_sse("/api/batch", json=body, params=params)
 
+async def get_language_preference(ctx: Context) -> dict:
+    """Get the interface language preference stored on the server (returns {'language': str | None})."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/preferences/language")
+
+async def set_language_preference(ctx: Context, language: str | None = None) -> dict:
+    """Set the interface language preference on the server (locale code, or None to follow the browser)."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.put("/api/preferences/language", json={"language": language})
+
+async def get_pinned_digest_report(ctx: Context) -> dict:
+    """Get whether moved digests on pinned images are reported globally (returns {'enabled': bool})."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.get("/api/settings/pinned-digest-report")
+
+async def set_pinned_digest_report(enabled: bool, ctx: Context) -> dict:
+    """Set whether moved digests on pinned images are reported globally."""
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post("/api/settings/pinned-digest-report", json={"enabled": enabled})
+
 def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_notifications)
     mcp.add_tool(get_notification)
@@ -276,4 +296,8 @@ def register_misc_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_minimum_release_age)
     mcp.add_tool(set_minimum_release_age)
     mcp.add_tool(execute_batch_operation)
+    mcp.add_tool(get_language_preference)
+    mcp.add_tool(set_language_preference)
+    mcp.add_tool(get_pinned_digest_report)
+    mcp.add_tool(set_pinned_digest_report)
 

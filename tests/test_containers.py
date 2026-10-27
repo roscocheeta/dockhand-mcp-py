@@ -434,4 +434,77 @@ async def test_container_inspect_logs_stats_top_files_and_lifecycle(mock_client,
         assert (await rename_container(1, "c1", "c2", mock_ctx))["renamed"] is True
         assert (await exec_container(1, "c1", mock_ctx, shell="sh", user="root"))["execId"] == "ex1"
 
+@pytest.mark.asyncio
+async def test_container_scheduled_actions(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import (
+        get_container_scheduled_actions,
+        set_container_scheduled_actions,
+    )
+    import json
 
+    with respx.mock:
+        get_route = respx.get("http://dockhand.test/api/scheduled-actions/web-app?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "startAt": "07:00",
+                    "stopAt": "23:00",
+                    "enabled": True,
+                    "source": "ui",
+                    "labelErrors": [],
+                    "systemContainer": False,
+                    "lastStarted": None,
+                    "lastStopped": None,
+                },
+            )
+        )
+        put_route = respx.put("http://dockhand.test/api/scheduled-actions/web-app?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "startAt": "08:00",
+                    "stopAt": "20:00",
+                    "enabled": True,
+                    "source": "ui",
+                    "labelErrors": [],
+                    "systemContainer": False,
+                    "lastStarted": None,
+                    "lastStopped": None,
+                },
+            )
+        )
+
+        schedule = await get_container_scheduled_actions(1, "web-app", mock_ctx)
+        assert get_route.called
+        assert schedule["startAt"] == "07:00"
+        assert schedule["stopAt"] == "23:00"
+        assert schedule["enabled"] is True
+
+        updated = await set_container_scheduled_actions(
+            1, "web-app", mock_ctx, start_at="08:00", stop_at="20:00", enabled=True
+        )
+        assert put_route.called
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload["startAt"] == "08:00"
+        assert payload["stopAt"] == "20:00"
+        assert payload["enabled"] is True
+        assert updated["startAt"] == "08:00"
+
+        # Test clear schedule without enabled flag
+        respx.put("http://dockhand.test/api/scheduled-actions/db-app?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "startAt": None,
+                    "stopAt": None,
+                    "enabled": True,
+                    "source": "ui",
+                    "labelErrors": [],
+                    "systemContainer": False,
+                    "lastStarted": None,
+                    "lastStopped": None,
+                },
+            )
+        )
+        cleared = await set_container_scheduled_actions(1, "db-app", mock_ctx, start_at=None, stop_at=None)
+        assert cleared["startAt"] is None
