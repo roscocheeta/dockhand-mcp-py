@@ -64,6 +64,7 @@ Before submitting any Pull Request or committing changes, run the following veri
 | :--- | :--- | :--- |
 | **Test Suite & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain >90% line coverage across all modules. |
 | **Dependency Security Audit** | `uv tool run pip-audit` | Zero known vulnerabilities (moderate+ severity). |
+| **Static Application Security (SAST)** | `uv tool run bandit -r dockhand_mcp -ll` | Zero medium or high severity security findings. |
 | **Build & Packaging Verification** | `uv build` | Successfully builds `.tar.gz` sdist and `.whl` wheel without hatchling errors. |
 | **Syntax & Type Validation** | `uv run --no-sync python -m py_compile dockhand_mcp/**/*.py` | Zero syntax or indentation errors. |
 

@@ -30,5 +30,8 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+      # Code scanning is enabled automatically on public repos, but requires GHAS on private repos.
+      # Gracefully continue if code scanning is not toggled in repository settings.
+      continue-on-error: true
       with:
         category: "/language:python"
