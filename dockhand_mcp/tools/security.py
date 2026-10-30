@@ -6,38 +6,53 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path
 
-async def list_vulnerabilities(environment_id: int, ctx: Context) -> dict:
+
+def _clean_env_ctx(env_val: Any, ctx_val: Any) -> tuple[int | None, Any]:
+    if env_val is not None and not isinstance(env_val, int):
+        return None, env_val
+    return env_val, ctx_val
+
+
+async def list_vulnerabilities(environment_id: int | None = None, ctx: Context = None, *args: Any) -> dict:
+    environment_id, ctx = _clean_env_ctx(environment_id, ctx)
     """List all known vulnerabilities for the given environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/security/vulnerabilities", params={"env": environment_id})
+    return await client.get("/api/security/vulnerabilities", params={"env": await client.resolve_environment_id(environment_id)})
 
-async def get_vulnerability_count(environment_id: int, ctx: Context) -> dict:
+async def get_vulnerability_count(environment_id: int | None = None, ctx: Context = None, *args: Any) -> dict:
+    environment_id, ctx = _clean_env_ctx(environment_id, ctx)
     """Get the count of vulnerabilities for the given environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/security/vulnerabilities/count", params={"env": environment_id})
+    return await client.get("/api/security/vulnerabilities/count", params={"env": await client.resolve_environment_id(environment_id)})
 
-async def scan_all_vulnerabilities(environment_id: int, ctx: Context) -> dict:
+async def scan_all_vulnerabilities(environment_id: int | None = None, ctx: Context = None, *args: Any) -> dict:
+    environment_id, ctx = _clean_env_ctx(environment_id, ctx)
     """Trigger a vulnerability scan across all resources in the environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post("/api/security/vulnerabilities/scan", params={"env": environment_id})
+    return await client.post("/api/security/vulnerabilities/scan", params={"env": await client.resolve_environment_id(environment_id)})
 
-async def list_image_scans(environment_id: int, image_id: str, ctx: Context) -> dict:
+async def list_image_scans(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+    if isinstance(image_id, int):
+        environment_id, image_id, ctx = image_id, str(ctx), environment_id
     """List vulnerability scans for a specific image."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/images/{encode_path(image_id)}/scans", params={"env": environment_id})
+    return await client.get(f"/api/images/{encode_path(image_id)}/scans", params={"env": await client.resolve_environment_id(environment_id)})
 
 async def scan_image(
-    environment_id: int, 
     image_name: str, 
-    ctx: Context,
-    scanner: str | None = None
+    ctx: Context = None,
+    environment_id: int | None = None, 
+    scanner: str | None = None,
+    *args: Any
 ) -> dict:
+    if isinstance(image_name, int):
+        environment_id, image_name, ctx = image_name, str(ctx), environment_id
     """Run vulnerability scan on a Docker image using Grype or Trivy.
     
     Args:
-        environment_id: Environment ID containing the image.
         image_name: Image name or ID to scan (e.g., 'nginx:latest' or sha256).
         ctx: FastMCP Context.
+        environment_id: Environment ID containing the image (optional; defaults to active environment).
         scanner: Force specific scanner ('grype' or 'trivy'). If not specified, uses environment settings.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
@@ -45,7 +60,7 @@ async def scan_image(
     if scanner is not None:
         body["scanner"] = scanner
         
-    return await client.post("/api/images/scan", json=body, params={"env": environment_id})
+    return await client.post("/api/images/scan", json=body, params={"env": await client.resolve_environment_id(environment_id)})
 
 def register_security_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_vulnerabilities)
@@ -53,4 +68,3 @@ def register_security_tools(mcp: FastMCP) -> None:
     mcp.add_tool(scan_all_vulnerabilities)
     mcp.add_tool(list_image_scans)
     mcp.add_tool(scan_image)
-

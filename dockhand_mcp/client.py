@@ -11,6 +11,7 @@ Handles:
 
 import asyncio
 import logging
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -167,6 +168,7 @@ class DockhandClient:
             follow_redirects=False,
             verify=verify_ssl,
         )
+        self._cached_default_env: Optional[int] = None
 
     def _check_read_only(self, method: str, path: str) -> None:
         """Raise DockhandAPIError(403) if mutating HTTP method is called in read-only mode."""
@@ -187,6 +189,94 @@ class DockhandClient:
 
     async def __aexit__(self, *args: Any) -> None:
         await self.close()
+
+
+    async def resolve_environment_id(self, environment_id: Optional[int] = None) -> int:
+        """
+        Resolve the target environment ID.
+
+        If environment_id is provided, returns it directly.
+        Otherwise:
+        1. Checks DOCKHAND_DEFAULT_ENV environment variable.
+        2. Checks cached default environment ID.
+        3. Queries GET /api/environments. If exactly one environment exists, caches and returns its ID.
+        4. If multiple environments exist, raises ValueError listing available environment IDs.
+        """
+        if environment_id is not None:
+            return int(environment_id)
+
+        env_var = os.environ.get("DOCKHAND_DEFAULT_ENV", "").strip()
+        if env_var:
+            try:
+                return int(env_var)
+            except ValueError:
+                raise ValueError(f"Invalid DOCKHAND_DEFAULT_ENV '{env_var}': must be an integer environment ID.")
+
+        if self._cached_default_env is not None:
+            return self._cached_default_env
+
+        try:
+            data = await self.get("/api/environments")
+        except Exception as exc:
+            raise ValueError(f"Could not automatically resolve default environment: {exc}. Please specify environment_id.") from exc
+
+        envs = data.get("environments", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        if not envs:
+            raise ValueError("No environments found in Dockhand. Please check your Dockhand instance configuration.")
+
+        for e in envs:
+            if e.get("isDefault") or e.get("default") or e.get("is_default"):
+                def_id = e.get("id") or e.get("Id")
+                if def_id is not None:
+                    self._cached_default_env = int(def_id)
+                    return self._cached_default_env
+
+        if len(envs) == 1:
+            env_id = envs[0].get("id") or envs[0].get("Id")
+            if env_id is not None:
+                self._cached_default_env = int(env_id)
+                return self._cached_default_env
+
+        env_list_str = ", ".join(f"[{e.get('id')}: '{e.get('name')}']" for e in envs)
+        raise ValueError(
+            f"Multiple Dockhand environments found ({env_list_str}). "
+            "Please specify 'environment_id' or set the DOCKHAND_DEFAULT_ENV environment variable."
+        )
+
+    async def resolve_git_stack_id(self, stack: int | str) -> int:
+        """
+        Resolve a Git stack identifier (numeric ID or human-readable stackName).
+
+        If an integer (or numeric string) is passed, returns int(stack).
+        Otherwise queries GET /api/git/stacks and matches stackName/name.
+        """
+        if isinstance(stack, int):
+            return stack
+
+        s_str = str(stack).strip()
+        if s_str.isdigit():
+            return int(s_str)
+
+        try:
+            stacks = await self.get("/api/git/stacks")
+        except Exception as exc:
+            raise ValueError(f"Could not resolve Git stack '{stack}': {exc}") from exc
+
+        if isinstance(stacks, list):
+            s_lower = s_str.lower()
+            for item in stacks:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("stackName") or item.get("name") or item.get("Name")
+                if name and str(name).lower() == s_lower:
+                    return int(item["id"])
+
+            available = [str(item.get("stackName") or item.get("name")) for item in stacks if isinstance(item, dict) and (item.get("stackName") or item.get("name"))]
+            raise ValueError(
+                f"Git stack '{stack}' not found. Available Git stacks: {', '.join(available) if available else 'none'}"
+            )
+
+        raise ValueError(f"Could not resolve Git stack '{stack}': unexpected API response from /api/git/stacks")
 
     # ── Generic HTTP methods ─────────────────────────────────────────────
 

@@ -5,7 +5,7 @@ Git Credential management tools.
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
-async def list_git_credentials(ctx: Context) -> list:
+async def list_git_credentials(ctx: Context = None) -> list:
     """List Git credentials (passwords stripped for security)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     creds = await client.get("/api/git/credentials")
@@ -18,7 +18,7 @@ async def list_git_credentials(ctx: Context) -> list:
                     c[key] = "***"
     return creds
 
-async def create_git_credential(name: str, username: str, ctx: Context, password: str | None = None, private_key: str | None = None) -> dict:
+async def create_git_credential(name: str, username: str, ctx: Context = None, password: str | None = None, private_key: str | None = None) -> dict:
     """
     Create a new Git credential.
     ⚠️ SECURITY WARNING: Passing password or private_key exposes secrets in plain text within your chat history.
@@ -32,7 +32,7 @@ async def create_git_credential(name: str, username: str, ctx: Context, password
     data = await client.post("/api/git/credentials", json=body)
     return redact_sensitive_dict(data)
 
-async def update_git_credential(credential_id: int, ctx: Context, name: str | None = None, username: str | None = None, password: str | None = None, private_key: str | None = None) -> dict:
+async def update_git_credential(credential_id: int, ctx: Context = None, name: str | None = None, username: str | None = None, password: str | None = None, private_key: str | None = None) -> dict:
     """
     Update an existing Git credential.
     ⚠️ SECURITY WARNING: Passing password or private_key exposes secrets in plain text within your chat history.
@@ -46,7 +46,7 @@ async def update_git_credential(credential_id: int, ctx: Context, name: str | No
     data = await client.put(f"/api/git/credentials/{encode_path(str(credential_id))}", json=body)
     return redact_sensitive_dict(data)
 
-async def delete_git_credential(credential_id: int, ctx: Context) -> dict:
+async def delete_git_credential(credential_id: int, ctx: Context = None) -> dict:
     """Delete a Git credential."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/git/credentials/{encode_path(str(credential_id))}")

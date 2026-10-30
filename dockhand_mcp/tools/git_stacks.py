@@ -41,7 +41,7 @@ def _compact_sync_result(res: dict) -> dict:
     return compact
 
 
-async def list_git_stacks(ctx: Context) -> list:
+async def list_git_stacks(ctx: Context = None) -> list:
     """List all Git-backed stacks."""
     client = ctx.request_context.lifespan_context["dockhand"]
     stacks = await client.get("/api/git/stacks")
@@ -49,26 +49,29 @@ async def list_git_stacks(ctx: Context) -> list:
         return [_compact_git_stack(s) for s in stacks]
     return stacks
 
-async def get_git_stack(stack_id: int, ctx: Context) -> dict:
-    """Get details for a specific Git stack. Webhook secrets and secret env vars are redacted."""
+async def get_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
+    """Get details for a specific Git stack by numeric ID or stack name. Webhook secrets and secret env vars are redacted."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    data = await client.get(f"/api/git/stacks/{encode_path(str(stack_id))}")
+    resolved_id = await client.resolve_git_stack_id(stack_id)
+    data = await client.get(f"/api/git/stacks/{encode_path(str(resolved_id))}")
     return redact_sensitive_dict(strip_nulls(data))
 
-async def deploy_git_stack(stack_id: int, ctx: Context) -> dict:
-    """Deploy a Git stack. Uses SSE streaming."""
+async def deploy_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
+    """Deploy a Git stack by numeric ID or stack name. Uses SSE streaming."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy-stream")
+    resolved_id = await client.resolve_git_stack_id(stack_id)
+    return await client.post_sse(f"/api/git/stacks/{encode_path(str(resolved_id))}/deploy-stream")
 
-async def sync_git_stack(stack_id: int, ctx: Context, deploy: bool = False) -> dict:
-    """Sync a Git stack with its remote repository.
+async def sync_git_stack(stack_id: int | str, ctx: Context = None, deploy: bool = False) -> dict:
+    """Sync a Git stack with its remote repository by numeric ID or stack name.
 
     Args:
-        stack_id: Numeric ID of the Git stack.
+        stack_id: Numeric ID or name of the Git stack (e.g. 33 or 'radarr').
         deploy: If True, automatically deploys the stack after a successful sync.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    raw_sync = await client.post(f"/api/git/stacks/{encode_path(str(stack_id))}/sync")
+    resolved_id = await client.resolve_git_stack_id(stack_id)
+    raw_sync = await client.post(f"/api/git/stacks/{encode_path(str(resolved_id))}/sync")
     compact_sync = _compact_sync_result(raw_sync)
 
     if not deploy:
@@ -80,22 +83,22 @@ async def sync_git_stack(stack_id: int, ctx: Context, deploy: bool = False) -> d
             "deploy": {"success": False, "error": "Deployment skipped because sync failed"},
         }
 
-    deploy_res = await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy-stream")
+    deploy_res = await client.post_sse(f"/api/git/stacks/{encode_path(str(resolved_id))}/deploy-stream")
     return {
         "sync": compact_sync,
         "deploy": deploy_res,
     }
 
 
-async def sync_and_deploy_git_stack(stack_id: int, ctx: Context) -> dict:
-    """Atomically sync a Git stack with its remote repository and immediately deploy it."""
+async def sync_and_deploy_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
+    """Atomically sync a Git stack by numeric ID or name with its remote repository and immediately deploy it."""
     return await sync_git_stack(stack_id=stack_id, ctx=ctx, deploy=True)
 
 async def create_git_stack(
-    environment_id: int,
     stack_name: str,
     url: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
     branch: str = "main",
     compose_path: str = "docker-compose.yml",
     env_file_path: str | None = None,
@@ -130,9 +133,10 @@ async def create_git_stack(
         env_vars: Optional environment variable overrides (list of dicts with 'key', 'value', optional 'isSecret').
     """
     client = ctx.request_context.lifespan_context["dockhand"]
+    env_id = await client.resolve_environment_id(environment_id)
     body: dict = {
         "stackName": stack_name,
-        "environmentId": environment_id,
+        "environmentId": env_id,
         "url": url,
         "branch": branch,
         "composePath": compose_path,
@@ -155,25 +159,27 @@ async def create_git_stack(
     data = await client.post("/api/git/stacks", json=body)
     return redact_sensitive_dict(data)
 
-async def update_git_stack(stack_id: int, ctx: Context, branch: str | None = None, compose_path: str | None = None, env_vars: list | None = None) -> dict:
+async def update_git_stack(stack_id: int | str, ctx: Context = None, branch: str | None = None, compose_path: str | None = None, env_vars: list | None = None) -> dict:
     """
-    Update a Git stack.
+    Update a Git stack by numeric ID or stack name.
     ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_git_stack_id(stack_id)
     body = {}
     if branch is not None: body["branch"] = branch
     if compose_path is not None: body["composePath"] = compose_path
     if env_vars is not None: body["envVars"] = env_vars
-    data = await client.put(f"/api/git/stacks/{encode_path(str(stack_id))}", json=body)
+    data = await client.put(f"/api/git/stacks/{encode_path(str(resolved_id))}", json=body)
     return redact_sensitive_dict(data)
 
-async def delete_git_stack(stack_id: int, ctx: Context, force: bool = False) -> dict:
-    """Delete a Git stack."""
+async def delete_git_stack(stack_id: int | str, ctx: Context = None, force: bool = False) -> dict:
+    """Delete a Git stack by numeric ID or stack name."""
     client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_git_stack_id(stack_id)
     params = {}
     if force: params["force"] = "true"
-    return await client.delete(f"/api/git/stacks/{encode_path(str(stack_id))}", params=params)
+    return await client.delete(f"/api/git/stacks/{encode_path(str(resolved_id))}", params=params)
 
 def register_git_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_git_stacks)

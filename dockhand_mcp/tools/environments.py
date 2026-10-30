@@ -17,7 +17,7 @@ def _strip_environment_credentials(env: dict) -> dict:
 
 
 
-async def list_environments(ctx: Context) -> dict:
+async def list_environments(ctx: Context = None) -> dict:
     """List all Dockhand environments (Docker hosts)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     envs = await client.get("/api/environments")
@@ -25,7 +25,9 @@ async def list_environments(ctx: Context) -> dict:
         return {"environments": [_strip_environment_credentials(e) for e in envs]}
     return {"environments": envs}
 
-async def get_environment(environment_id: int, ctx: Context) -> dict:
+async def get_environment(environment_id: int | None = None, ctx: Context = None) -> dict:
+    client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_environment_id(environment_id)
     """Get details for a specific environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     env = await client.get(f"/api/environments/{encode_path(str(environment_id))}")
@@ -34,7 +36,7 @@ async def get_environment(environment_id: int, ctx: Context) -> dict:
 async def create_environment(
     name: str,
     connection_type: str,
-    ctx: Context,
+    ctx: Context = None,
     host: str | None = None,
     port: int | None = None,
     protocol: str = "http",
@@ -86,7 +88,7 @@ async def create_environment(
 
 async def update_environment(
     environment_id: int,
-    ctx: Context,
+    ctx: Context = None,
     name: str | None = None,
     connection_type: str | None = None,
     host: str | None = None,
@@ -143,24 +145,28 @@ async def update_environment(
     env = await client.put(f"/api/environments/{encode_path(str(environment_id))}", json=body)
     return _strip_environment_credentials(env)
 
-async def delete_environment(environment_id: int, ctx: Context) -> dict:
+async def delete_environment(environment_id: int, ctx: Context = None) -> dict:
     """⚠️ DESTRUCTIVE: Delete an environment from Dockhand. (Does not delete the actual host)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/environments/{encode_path(str(environment_id))}")
 
-async def test_environment(environment_id: int, ctx: Context) -> dict:
+async def test_environment(environment_id: int | None = None, ctx: Context = None) -> dict:
+    client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_environment_id(environment_id)
     """Test the connection to an existing environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/environments/{encode_path(str(environment_id))}/test")
 
-async def get_environment_update_check_settings(environment_id: int, ctx: Context) -> dict:
+async def get_environment_update_check_settings(environment_id: int | None = None, ctx: Context = None) -> dict:
+    client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_environment_id(environment_id)
     """Get the automatic container-image update-check schedule and minimum release age settings for an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(f"/api/environments/{encode_path(str(environment_id))}/update-check")
 
 async def update_environment_update_check_settings(
     environment_id: int,
-    ctx: Context,
+    ctx: Context = None,
     enabled: bool | None = None,
     cron: str | None = None,
     auto_update: bool | None = None,
@@ -186,7 +192,7 @@ async def update_environment_update_check_settings(
     return await client.post(f"/api/environments/{encode_path(str(environment_id))}/update-check", json=body)
 
 async def get_environment_report(
-    ctx: Context,
+    ctx: Context = None,
     environment_id: int | None = None,
     format: str = "json",
 ) -> dict | str:
@@ -197,14 +203,16 @@ async def get_environment_report(
         params["env"] = environment_id
     return await client.get("/api/environments/report", params=params)
 
-async def get_environment_report_settings(environment_id: int, ctx: Context) -> dict:
+async def get_environment_report_settings(environment_id: int | None = None, ctx: Context = None) -> dict:
+    client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_environment_id(environment_id)
     """Get the scheduled state report configuration for an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(f"/api/environments/{encode_path(str(environment_id))}/report")
 
 async def update_environment_report_settings(
     environment_id: int,
-    ctx: Context,
+    ctx: Context = None,
     enabled: bool | None = None,
     cron: str | None = None,
     format: str | None = None,

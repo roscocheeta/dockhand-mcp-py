@@ -18,7 +18,7 @@ def _compact_audit(a: dict) -> dict:
 
 
 async def get_audit_log(
-    ctx: Context,
+    ctx: Context = None,
     environment_id: int | None = None,
     limit: int = 100,
     offset: int = 0,
@@ -45,7 +45,7 @@ async def get_audit_log(
         return logs
     return logs
 
-async def get_audit_users(ctx: Context) -> list:
+async def get_audit_users(ctx: Context = None) -> list:
     """Get a list of users who have generated audit events."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/audit/users")
