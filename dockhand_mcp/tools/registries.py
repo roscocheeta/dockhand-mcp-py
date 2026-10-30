@@ -19,7 +19,7 @@ def _compact_registry(r: dict) -> dict:
     return compact
 
 
-async def list_registries(environment_id: int, ctx: Context) -> list:
+async def list_registries(environment_id: int, ctx: Context = None) -> list:
     """List all Docker registries configured in an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     registries = await client.get("/api/registries", params={"env": environment_id})
@@ -32,7 +32,7 @@ async def create_registry(
     name: str,
     registry_type: str,
     url: str,
-    ctx: Context,
+    ctx: Context = None,
     username: str | None = None,
     password: str | None = None,
 ) -> dict:
@@ -61,7 +61,7 @@ async def create_registry(
 async def update_registry(
     environment_id: int, 
     registry_id: int, 
-    ctx: Context,
+    ctx: Context = None,
     name: str | None = None,
     url: str | None = None,
     username: str | None = None,
@@ -92,7 +92,7 @@ async def update_registry(
     )
     return _compact_registry(reg) if isinstance(reg, dict) else reg
 
-async def delete_registry(environment_id: int, registry_id: int, ctx: Context) -> dict:
+async def delete_registry(environment_id: int, registry_id: int, ctx: Context = None) -> dict:
     """Delete a Docker registry configuration."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
@@ -100,7 +100,7 @@ async def delete_registry(environment_id: int, registry_id: int, ctx: Context) -
         params={"env": environment_id}
     )
 
-async def test_registry(environment_id: int, registry_id: int, ctx: Context) -> dict:
+async def test_registry(environment_id: int, registry_id: int, ctx: Context = None) -> dict:
     """Test connection/authentication to a Docker registry."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
@@ -108,7 +108,7 @@ async def test_registry(environment_id: int, registry_id: int, ctx: Context) -> 
         params={"env": environment_id}
     )
 
-async def get_registry(environment_id: int, registry_id: int, ctx: Context) -> dict:
+async def get_registry(environment_id: int, registry_id: int, ctx: Context = None) -> dict:
     """Get details for a specific Docker registry."""
     client = ctx.request_context.lifespan_context["dockhand"]
     reg = await client.get(

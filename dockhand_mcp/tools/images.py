@@ -2,6 +2,7 @@
 Image management tools.
 """
 
+from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, truncate_id, strip_nulls
 
@@ -16,37 +17,44 @@ def _compact_image(img: dict) -> dict:
     }
 
 
-async def list_images(environment_id: int, ctx: Context) -> list:
+async def list_images(environment_id: int | None = None, ctx: Context = None) -> list:
     """List all Docker images in an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    images = await client.get("/api/images", params={"env": environment_id})
+    images = await client.get("/api/images", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(images, list):
         return [_compact_image(i) for i in images]
     return images
 
-async def get_image_history(environment_id: int, image_id: str, ctx: Context) -> list:
+async def get_image_history(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list:
+    if isinstance(image_id, int):
+        environment_id, image_id, ctx = image_id, str(ctx), environment_id
     """Get history for an image."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/images/{encode_path(image_id)}/history", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     return strip_nulls(data)
 
-async def remove_image(environment_id: int, image_id: str, ctx: Context) -> dict:
+async def remove_image(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+    if isinstance(image_id, int):
+        environment_id, image_id, ctx = image_id, str(ctx), environment_id
     """Remove/delete an image from the environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/images/{encode_path(image_id)}", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def pull_image(
-    environment_id: int, 
-    image: str, 
-    ctx: Context,
-    scan_after_pull: bool = False
+    image: str,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    scan_after_pull: bool = False,
+    *args: Any,
 ) -> dict:
+    if isinstance(image, int):
+        environment_id, image, ctx = image, str(ctx), environment_id
     """
     Pull an image from a registry.
     image: Image name with tag (e.g. nginx:latest)
@@ -60,39 +68,45 @@ async def pull_image(
     return await client.post(
         "/api/images/pull", 
         json=body, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def tag_image(
-    environment_id: int, 
-    image_id: str, 
-    repo: str, 
-    tag: str, 
-    ctx: Context
+    image_id: str,
+    repo: str,
+    tag: str,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any,
 ) -> dict:
+    if isinstance(image_id, int):
+        environment_id, image_id, repo, tag, ctx = image_id, str(repo), tag, ctx, environment_id
     """Tag an existing image."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
         f"/api/images/{encode_path(image_id)}/tag", 
         json={"repo": repo, "tag": tag}, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def push_image(
-    environment_id: int,
     image_id: str,
     registry_id: int,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
     image_name: str | None = None,
-    new_tag: str | None = None
+    new_tag: str | None = None,
+    *args: Any,
 ) -> dict:
+    if isinstance(image_id, int):
+        environment_id, image_id, registry_id, ctx = image_id, str(registry_id), ctx, environment_id
     """Push an image to a registry.
     
     Args:
-        environment_id: Environment ID.
         image_id: The ID of the image to push (e.g. sha256 or name).
         registry_id: ID of the configured registry in Dockhand.
         ctx: FastMCP Context.
+        environment_id: Environment ID (optional; defaults to active environment).
         image_name: Optional original image name.
         new_tag: Custom tag for the pushed image (e.g. username/myapp:v1.0).
     """
@@ -109,7 +123,7 @@ async def push_image(
     return await client.post(
         "/api/images/push", 
         json=body, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 def register_image_tools(mcp: FastMCP) -> None:

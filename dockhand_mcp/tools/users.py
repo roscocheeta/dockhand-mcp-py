@@ -26,7 +26,7 @@ def _compact_token(t: dict) -> dict:
     }
 
 
-async def list_users(ctx: Context) -> list:
+async def list_users(ctx: Context = None) -> list:
     """List all users in the Dockhand instance."""
     client = ctx.request_context.lifespan_context["dockhand"]
     users = await client.get("/api/users")
@@ -37,7 +37,7 @@ async def list_users(ctx: Context) -> list:
 async def create_user(
     username: str, 
     password: str, 
-    ctx: Context,
+    ctx: Context = None,
     role: str = "user"
 ) -> dict:
     """
@@ -57,7 +57,7 @@ async def create_user(
 
 async def update_user(
     user_id: int, 
-    ctx: Context,
+    ctx: Context = None,
     password: str | None = None,
     role: str | None = None
 ) -> dict:
@@ -77,12 +77,12 @@ async def update_user(
         
     return await client.put(f"/api/users/{encode_path(str(user_id))}", json=body)
 
-async def delete_user(user_id: int, ctx: Context) -> dict:
+async def delete_user(user_id: int, ctx: Context = None) -> dict:
     """Delete a user."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/users/{encode_path(str(user_id))}")
 
-async def list_tokens(ctx: Context) -> list:
+async def list_tokens(ctx: Context = None) -> list:
     """List API tokens for the currently authenticated user."""
     client = ctx.request_context.lifespan_context["dockhand"]
     tokens = await client.get("/api/auth/tokens")
@@ -90,7 +90,7 @@ async def list_tokens(ctx: Context) -> list:
         return [_compact_token(t) for t in tokens]
     return tokens
 
-async def create_token(name: str, ctx: Context) -> dict:
+async def create_token(name: str, ctx: Context = None) -> dict:
     """
     SECURITY WARNING: The raw token value is returned in the response.
     It will be visible in chat history. Please store it securely or
@@ -101,23 +101,23 @@ async def create_token(name: str, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post("/api/auth/tokens", json={"name": name})
 
-async def delete_token(token_id: int, ctx: Context) -> dict:
+async def delete_token(token_id: int, ctx: Context = None) -> dict:
     """Delete an API token."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/auth/tokens/{encode_path(str(token_id))}")
 
-async def get_user(user_id: int, ctx: Context) -> dict:
+async def get_user(user_id: int, ctx: Context = None) -> dict:
     """Get details for a specific user."""
     client = ctx.request_context.lifespan_context["dockhand"]
     user = await client.get(f"/api/users/{encode_path(str(user_id))}")
     return _compact_user(user) if isinstance(user, dict) else user
 
-async def list_passkeys(ctx: Context) -> dict:
+async def list_passkeys(ctx: Context = None) -> dict:
     """List the signed-in user's registered passkeys (names and metadata only)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/profile/passkeys")
 
-async def delete_passkey(passkey_id: int, ctx: Context) -> dict:
+async def delete_passkey(passkey_id: int, ctx: Context = None) -> dict:
     """Remove one of the signed-in user's passkeys."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/profile/passkeys/{encode_path(str(passkey_id))}")

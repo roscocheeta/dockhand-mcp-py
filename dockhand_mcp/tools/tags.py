@@ -1,3 +1,4 @@
+from typing import Any
 from mcp.server.fastmcp import Context
 from dockhand_mcp.utils import encode_path
 
@@ -32,19 +33,26 @@ async def delete_tag(tag_id: int, ctx: Context = None) -> dict:
     client = ctx.request_context.lifespan_context['dockhand']
     return await client.delete(f'/api/tags/{encode_path(str(tag_id))}')
 
-async def get_stack_tags(environment_id: int, name: str, ctx: Context = None) -> list[int]:
+async def get_stack_tags(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list[int]:
+    if isinstance(name, int):
+        environment_id, name, ctx = name, str(ctx), environment_id
     """Get the tag IDs assigned to a stack."""
     client = ctx.request_context.lifespan_context['dockhand']
-    data = await client.get(f'/api/stacks/{encode_path(name)}/tags', params={'env': environment_id})
+    data = await client.get(
+        f'/api/stacks/{encode_path(name)}/tags', 
+        params={'env': await client.resolve_environment_id(environment_id)}
+    )
     return data.get('tagIds', [])
 
-async def set_stack_tags(environment_id: int, name: str, tag_ids: list[int], ctx: Context = None) -> list[int]:
+async def set_stack_tags(name: str, tag_ids: list[int] = None, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list[int]:
+    if isinstance(name, int):
+        environment_id, name, tag_ids, ctx = name, str(tag_ids), ctx, environment_id
     """Replace the tag IDs assigned to a stack."""
     client = ctx.request_context.lifespan_context['dockhand']
     data = await client.put(
         f'/api/stacks/{encode_path(name)}/tags',
-        json={'tagIds': tag_ids},
-        params={'env': environment_id}
+        json={'tagIds': tag_ids or []},
+        params={'env': await client.resolve_environment_id(environment_id)}
     )
     return data.get('tagIds', [])
 

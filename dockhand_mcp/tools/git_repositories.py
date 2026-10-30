@@ -5,7 +5,7 @@ Git Repository management tools.
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path
 
-async def list_git_repositories(ctx: Context) -> list:
+async def list_git_repositories(ctx: Context = None) -> list:
     """List Git repositories."""
     client = ctx.request_context.lifespan_context["dockhand"]
     repos = await client.get("/api/git/repositories")
@@ -21,7 +21,7 @@ async def list_git_repositories(ctx: Context) -> list:
         ]
     return repos
 
-async def create_git_repository(name: str, url: str, branch: str, ctx: Context, credential_id: int | None = None) -> dict:
+async def create_git_repository(name: str, url: str, branch: str, ctx: Context = None, credential_id: int | None = None) -> dict:
     """Create a new Git repository reference."""
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"name": name, "url": url, "branch": branch}
@@ -29,7 +29,7 @@ async def create_git_repository(name: str, url: str, branch: str, ctx: Context, 
         body["credentialId"] = credential_id
     return await client.post("/api/git/repositories", json=body)
 
-async def update_git_repository(repository_id: int, ctx: Context, name: str | None = None, url: str | None = None, branch: str | None = None, credential_id: int | None = None) -> dict:
+async def update_git_repository(repository_id: int, ctx: Context = None, name: str | None = None, url: str | None = None, branch: str | None = None, credential_id: int | None = None) -> dict:
     """Update an existing Git repository reference."""
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
@@ -39,22 +39,22 @@ async def update_git_repository(repository_id: int, ctx: Context, name: str | No
     if credential_id is not None: body["credentialId"] = credential_id
     return await client.put(f"/api/git/repositories/{encode_path(str(repository_id))}", json=body)
 
-async def delete_git_repository(repository_id: int, ctx: Context) -> dict:
+async def delete_git_repository(repository_id: int, ctx: Context = None) -> dict:
     """Delete a Git repository reference."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/git/repositories/{encode_path(str(repository_id))}")
 
-async def sync_git_repository(repository_id: int, ctx: Context) -> dict:
+async def sync_git_repository(repository_id: int, ctx: Context = None) -> dict:
     """Sync a Git repository."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/git/repositories/{encode_path(str(repository_id))}/sync")
 
-async def test_git_repository(repository_id: int, ctx: Context) -> dict:
+async def test_git_repository(repository_id: int, ctx: Context = None) -> dict:
     """Test connectivity for a Git repository."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/git/repositories/{encode_path(str(repository_id))}/test")
 
-async def trigger_git_webhook(repository_id: int, ctx: Context) -> dict:
+async def trigger_git_webhook(repository_id: int, ctx: Context = None) -> dict:
     """Trigger a webhook for a Git repository."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(f"/api/git/repositories/{encode_path(str(repository_id))}/webhook")

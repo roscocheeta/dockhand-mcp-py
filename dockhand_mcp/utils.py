@@ -270,6 +270,74 @@ def clean_container_inspect(c: dict) -> dict:
                 c["config"]["env"] = redact_env_secrets(c["config"]["env"])
     return c
 
+def compact_container_inspect(c: dict) -> dict:
+    """Extract essential runtime info, omitting bulky Docker engine internals to save tokens."""
+    if not isinstance(c, dict):
+        return c
+
+    c = clean_container_inspect(c)
+    res: dict[str, Any] = {
+        "Id": truncate_id(c.get("Id") or c.get("id")),
+        "Name": (c.get("Name") or c.get("name") or "").lstrip("/"),
+        "Image": truncate_id(c.get("Image") or c.get("image")),
+        "Created": c.get("Created") or c.get("created"),
+        "State": c.get("State") or c.get("state"),
+        "Status": c.get("Status") or c.get("status"),
+        "RestartCount": c.get("RestartCount") or c.get("restartCount"),
+    }
+
+    cfg = c.get("Config") or c.get("config") or {}
+    if isinstance(cfg, dict):
+        res["Config"] = {
+            "Image": cfg.get("Image") or cfg.get("image"),
+            "Env": redact_env_secrets(cfg.get("Env") or cfg.get("env")),
+            "Cmd": cfg.get("Cmd") or cfg.get("cmd"),
+            "WorkingDir": cfg.get("WorkingDir") or cfg.get("workingDir"),
+        }
+        labels = filter_labels(cfg.get("Labels") or cfg.get("labels"))
+        if labels:
+            res["Config"]["Labels"] = labels
+
+    hc = c.get("HostConfig") or c.get("hostConfig") or {}
+    if isinstance(hc, dict):
+        res["HostConfig"] = {
+            "RestartPolicy": hc.get("RestartPolicy") or hc.get("restartPolicy"),
+            "PortBindings": hc.get("PortBindings") or hc.get("portBindings"),
+            "AutoRemove": hc.get("AutoRemove") or hc.get("autoRemove"),
+        }
+
+    mounts = c.get("Mounts") or c.get("mounts")
+    if isinstance(mounts, list):
+        res["Mounts"] = [
+            {
+                "Type": m.get("Type") or m.get("type"),
+                "Source": m.get("Source") or m.get("source"),
+                "Destination": m.get("Destination") or m.get("destination"),
+                "Mode": m.get("Mode") or m.get("mode"),
+                "RW": m.get("RW") or m.get("rw"),
+            }
+            for m in mounts
+            if isinstance(m, dict)
+        ]
+
+    ns = c.get("NetworkSettings") or c.get("networkSettings") or {}
+    if isinstance(ns, dict):
+        nets = ns.get("Networks") or ns.get("networks") or {}
+        res["NetworkSettings"] = {
+            "Ports": ns.get("Ports") or ns.get("ports"),
+            "Networks": {
+                net_name: {
+                    "IPAddress": net_info.get("IPAddress") or net_info.get("ipAddress"),
+                    "Gateway": net_info.get("Gateway") or net_info.get("gateway"),
+                    "Aliases": net_info.get("Aliases") or net_info.get("aliases"),
+                }
+                for net_name, net_info in nets.items()
+                if isinstance(net_info, dict)
+            },
+        }
+
+    return strip_nulls(res)
+
 
 _DURATION_RE = re.compile(r"^(\d+)\s*([smhdw])$", re.IGNORECASE)
 _DURATION_MULTIPLIERS = {
