@@ -517,3 +517,58 @@ async def test_sops_secret_provider_and_redaction(mock_client):
         assert update_route.called
         assert updated["name"] == "SOPS Production Updated"
         assert updated["config"]["ageKey"] == "***REDACTED***"
+
+
+@pytest.mark.asyncio
+async def test_execute_batch_operation_string_normalization(mock_client):
+    import json
+    mock_ctx = MockContext(mock_client)
+    from dockhand_mcp.tools.misc import execute_batch_operation
+
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/batch?env=1").mock(
+            return_value=Response(200, json={"jobId": "job-123"})
+        )
+
+        # 1. Containers with string IDs/names
+        await execute_batch_operation(
+            operation="start",
+            entity_type="containers",
+            items=["radarr", "sonarr"],
+            ctx=mock_ctx,
+            environment_id=1,
+        )
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["items"] == [{"id": "radarr"}, {"id": "sonarr"}]
+
+        # 2. Stacks with string names
+        await execute_batch_operation(
+            operation="restart",
+            entity_type="stacks",
+            items=["bazarr", "tautulli"],
+            ctx=mock_ctx,
+            environment_id=1,
+        )
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["items"] == [{"name": "bazarr"}, {"name": "tautulli"}]
+
+        # 3. Volumes with string names
+        await execute_batch_operation(
+            operation="remove",
+            entity_type="volumes",
+            items=["vol1"],
+            ctx=mock_ctx,
+            environment_id=1,
+        )
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["items"] == [{"name": "vol1"}]
+
+        # 4. Invalid item type raises ValueError
+        with pytest.raises(ValueError, match="Invalid batch item"):
+            await execute_batch_operation(
+                operation="remove",
+                entity_type="containers",
+                items=[12345],
+                ctx=mock_ctx,
+                environment_id=1,
+            )
