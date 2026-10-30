@@ -42,7 +42,7 @@ The server exposes the following tools to the LLM agent:
 - `adopt_stack`, `relocate_stack`, `get_stack_deploy_history`, `get_stack_deploy_log`
 
 ### Git Stacks
-- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`
+- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`, `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`
 - `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`
 - `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`
 

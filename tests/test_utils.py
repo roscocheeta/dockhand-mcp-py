@@ -1,5 +1,6 @@
 import pytest
 from dockhand_mcp.utils import (
+    parse_since_to_epoch,
     redact_env_secrets,
     is_secret_key,
     redact_env_text,
@@ -201,3 +202,32 @@ class TestUtils:
         assert cleaned["envVars"][2] == {"key": "CUSTOM_VAR", "value": "***REDACTED***", "isSecret": True}
         assert cleaned["variables"]["PORT"] == "8080"
         assert cleaned["variables"]["JWT_SECRET"] == "***REDACTED***"
+
+
+    def test_parse_since_to_epoch(self):
+        assert parse_since_to_epoch(None) is None
+        assert parse_since_to_epoch("") is None
+        assert parse_since_to_epoch("   ") is None
+        assert parse_since_to_epoch(1700000000) == 1700000000
+        assert parse_since_to_epoch("1700000000") == 1700000000
+
+        # Relative durations with fixed now_epoch = 1000000
+        now = 1000000
+        assert parse_since_to_epoch("30s", now_epoch=now) == now - 30
+        assert parse_since_to_epoch("10m", now_epoch=now) == now - 600
+        assert parse_since_to_epoch("1h", now_epoch=now) == now - 3600
+        assert parse_since_to_epoch("24h", now_epoch=now) == now - 86400
+        assert parse_since_to_epoch("7d", now_epoch=now) == now - 604800
+        assert parse_since_to_epoch("2w", now_epoch=now) == now - 1209600
+
+        # ISO 8601 string
+        iso_epoch = parse_since_to_epoch("2026-10-31T00:00:00Z")
+        assert isinstance(iso_epoch, int)
+        assert iso_epoch > 1700000000
+
+        # Invalid formats raise ValueError
+        with pytest.raises(ValueError, match="Invalid 'since' value"):
+            parse_since_to_epoch("invalid_time")
+
+        with pytest.raises(ValueError, match="Invalid type for 'since'"):
+            parse_since_to_epoch(["invalid", "type"])

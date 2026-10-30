@@ -2,20 +2,43 @@
 Git Stack management tools.
 """
 
+from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_sensitive_dict, strip_nulls
 
 
 def _compact_git_stack(s: dict) -> dict:
     """Keep only essential fields for token efficiency."""
+    repo = s.get("repository") if isinstance(s.get("repository"), dict) else {}
     return {
         "Id": s.get("Id") or s.get("id"),
-        "Name": s.get("Name") or s.get("name"),
-        "Url": s.get("Url") or s.get("url"),
-        "Branch": s.get("Branch") or s.get("branch"),
-        "Status": s.get("Status") or s.get("status"),
+        "Name": s.get("stackName") or s.get("Name") or s.get("name"),
+        "Url": s.get("Url") or s.get("url") or repo.get("url"),
+        "Branch": s.get("Branch") or s.get("branch") or repo.get("branch"),
+        "Status": s.get("syncStatus") or s.get("Status") or s.get("status"),
         "EnvironmentId": s.get("EnvironmentId") or s.get("environmentId"),
+        "ComposePath": s.get("composePath") or s.get("ComposePath"),
     }
+
+
+def _compact_sync_result(res: dict) -> dict:
+    """Strip massive file hash manifests and raw compose dumps from sync response to save tokens."""
+    if not isinstance(res, dict):
+        return res
+    success = res.get("success", res.get("synced", False))
+    compact = {
+        "success": success,
+        "synced": success,
+        "commit": res.get("commit"),
+        "updated": res.get("updated", False),
+        "changedFiles": res.get("changedFiles", []),
+        "composeFileName": res.get("composeFileName"),
+    }
+    if res.get("error"):
+        compact["error"] = res["error"]
+    if res.get("deletionPlan") and res["deletionPlan"].get("toDelete"):
+        compact["toDelete"] = res["deletionPlan"]["toDelete"]
+    return compact
 
 
 async def list_git_stacks(ctx: Context) -> list:
@@ -37,10 +60,36 @@ async def deploy_git_stack(stack_id: int, ctx: Context) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy-stream")
 
-async def sync_git_stack(stack_id: int, ctx: Context) -> dict:
-    """Sync a Git stack with its remote repository."""
+async def sync_git_stack(stack_id: int, ctx: Context, deploy: bool = False) -> dict:
+    """Sync a Git stack with its remote repository.
+
+    Args:
+        stack_id: Numeric ID of the Git stack.
+        deploy: If True, automatically deploys the stack after a successful sync.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post(f"/api/git/stacks/{encode_path(str(stack_id))}/sync")
+    raw_sync = await client.post(f"/api/git/stacks/{encode_path(str(stack_id))}/sync")
+    compact_sync = _compact_sync_result(raw_sync)
+
+    if not deploy:
+        return compact_sync
+
+    if not compact_sync.get("success", False):
+        return {
+            "sync": compact_sync,
+            "deploy": {"success": False, "error": "Deployment skipped because sync failed"},
+        }
+
+    deploy_res = await client.post_sse(f"/api/git/stacks/{encode_path(str(stack_id))}/deploy-stream")
+    return {
+        "sync": compact_sync,
+        "deploy": deploy_res,
+    }
+
+
+async def sync_and_deploy_git_stack(stack_id: int, ctx: Context) -> dict:
+    """Atomically sync a Git stack with its remote repository and immediately deploy it."""
+    return await sync_git_stack(stack_id=stack_id, ctx=ctx, deploy=True)
 
 async def create_git_stack(
     environment_id: int,
@@ -131,6 +180,7 @@ def register_git_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_git_stack)
     mcp.add_tool(deploy_git_stack)
     mcp.add_tool(sync_git_stack)
+    mcp.add_tool(sync_and_deploy_git_stack)
     mcp.add_tool(create_git_stack)
     mcp.add_tool(update_git_stack)
     mcp.add_tool(delete_git_stack)

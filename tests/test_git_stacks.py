@@ -236,3 +236,104 @@ async def test_git_stack_list_deploy_sync_delete_and_cred_delete(mock_client):
 
 
 
+
+
+def test_compact_git_stack_upstream_format():
+    from dockhand_mcp.tools.git_stacks import _compact_git_stack
+    raw_api_payload = {
+        "id": 33,
+        "stackName": "bazarr",
+        "environmentId": 1,
+        "repositoryId": 6,
+        "branch": None,
+        "composePath": "bazarr.yaml",
+        "envFilePath": None,
+        "autoUpdate": False,
+        "syncStatus": "synced",
+        "repository": {
+            "id": 6,
+            "name": "bazarr",
+            "url": "https://github.com/user/stacks",
+            "branch": "main",
+            "credentialId": 1,
+        },
+    }
+    compact = _compact_git_stack(raw_api_payload)
+    assert compact["Id"] == 33
+    assert compact["Name"] == "bazarr"
+    assert compact["Url"] == "https://github.com/user/stacks"
+    assert compact["Branch"] == "main"
+    assert compact["Status"] == "synced"
+    assert compact["ComposePath"] == "bazarr.yaml"
+    assert compact["EnvironmentId"] == 1
+
+
+@pytest.mark.asyncio
+async def test_sync_git_stack_with_deploy_and_atomic_tool(mock_client):
+    from dockhand_mcp.tools.git_stacks import sync_git_stack, sync_and_deploy_git_stack
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        # Mock sync returning full bloat payload
+        sync_route = respx.post("http://dockhand.test/api/git/stacks/33/sync").mock(
+            return_value=Response(
+                200,
+                json={
+                    "success": True,
+                    "commit": "abc1234",
+                    "updated": True,
+                    "changedFiles": ["compose.yaml"],
+                    "composeFileName": "compose.yaml",
+                    "composeContent": "services:\n  app: ...",
+                    "newFiles": {f"file_{i}": "hash" * 10 for i in range(50)},
+                    "previousManifest": {"files": {}},
+                },
+            )
+        )
+        deploy_route = respx.post("http://dockhand.test/api/git/stacks/33/deploy-stream").mock(
+            return_value=Response(
+                200,
+                text='data: {"output": "Deployed successfully", "success": true}\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+
+        # 1. Sync only: verify bloated fields are compacted away
+        res_sync_only = await sync_git_stack(33, mock_ctx, deploy=False)
+        assert sync_route.called
+        assert not deploy_route.called
+        assert res_sync_only["success"] is True
+        assert res_sync_only["commit"] == "abc1234"
+        assert res_sync_only["updated"] is True
+        assert "newFiles" not in res_sync_only
+        assert "composeContent" not in res_sync_only
+
+        # 2. Sync with deploy=True: verify deploy stream called
+        res_deploy = await sync_git_stack(33, mock_ctx, deploy=True)
+        assert deploy_route.called
+        assert res_deploy["sync"]["success"] is True
+        assert res_deploy["deploy"]["success"] is True
+
+        # 3. Dedicated sync_and_deploy_git_stack helper
+        res_atomic = await sync_and_deploy_git_stack(33, mock_ctx)
+        assert res_atomic["deploy"]["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_sync_git_stack_deploy_skipped_on_sync_failure(mock_client):
+    from dockhand_mcp.tools.git_stacks import sync_git_stack
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        respx.post("http://dockhand.test/api/git/stacks/33/sync").mock(
+            return_value=Response(200, json={"success": False, "error": "Git pull failed"})
+        )
+        deploy_route = respx.post("http://dockhand.test/api/git/stacks/33/deploy-stream").mock(
+            return_value=Response(200, text='data: {"success": true}\n')
+        )
+
+        res = await sync_git_stack(33, mock_ctx, deploy=True)
+        assert not deploy_route.called
+        assert res["sync"]["success"] is False
+        assert res["deploy"]["success"] is False
+        assert "skipped" in res["deploy"]["error"]
