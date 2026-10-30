@@ -2,6 +2,7 @@
 Miscellaneous and Tier 3 Dockhand tools.
 """
 
+from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
@@ -227,19 +228,53 @@ async def delete_secret_provider(provider_id: int, ctx: Context) -> dict:
 async def execute_batch_operation(
     operation: str,
     entity_type: str,
-    items: list[dict[str, str]],
+    items: list[str | dict[str, Any]],
     ctx: Context,
     environment_id: int | None = None,
     force: bool = False,
     remove_volumes: bool = False,
 ) -> dict:
-    """Run a bulk operation (start/stop/restart/pause/unpause/remove/down) across containers, images, volumes, networks, or stacks."""
+    """Run a bulk operation across containers, images, volumes, networks, or stacks.
+
+    Args:
+        operation: Action to perform.
+            - containers: 'start', 'stop', 'restart', 'pause', 'unpause', 'remove'
+            - images: 'remove'
+            - volumes: 'remove'
+            - networks: 'remove'
+            - stacks: 'start', 'stop', 'restart', 'down'
+        entity_type: Type of entity ('containers', 'images', 'volumes', 'networks', 'stacks').
+        items: List of target identifiers. Can be passed as:
+            - Plain strings (e.g. ['radarr', 'sonarr'] or ['sha256:...'])
+            - Dictionaries:
+                - containers: [{'id': '...'}, {'name': '...'}]
+                - images: [{'id': 'sha256:...'}]
+                - volumes: [{'name': 'volume_name'}]
+                - networks: [{'id': '...'} or {'name': '...'}]
+                - stacks: [{'name': 'stack_name'}]
+        environment_id: Optional target environment ID.
+        force: Force removal for containers, images, or networks (default False).
+        remove_volumes: Remove associated volumes when removing containers/stacks (default False).
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     params = {"env": environment_id} if environment_id is not None else None
+
+    normalized_items: list[dict[str, Any]] = []
+    for item in items:
+        if isinstance(item, str):
+            if entity_type in ("stacks", "volumes"):
+                normalized_items.append({"name": item})
+            else:
+                normalized_items.append({"id": item})
+        elif isinstance(item, dict):
+            normalized_items.append(item)
+        else:
+            raise ValueError(f"Invalid batch item: {item}. Must be a string identifier or a dictionary.")
+
     body = {
         "operation": operation,
         "entityType": entity_type,
-        "items": items,
+        "items": normalized_items,
         "options": {"force": force, "removeVolumes": remove_volumes},
     }
     return await client.post_sse("/api/batch", json=body, params=params)

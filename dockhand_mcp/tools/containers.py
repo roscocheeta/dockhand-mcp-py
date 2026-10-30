@@ -5,7 +5,7 @@ Container management tools (Read-only for Phase 2b).
 import json
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect, redact_env_text
+from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect, redact_env_text, parse_since_to_epoch
 
 
 def _compact_container(c: dict) -> dict:
@@ -61,6 +61,8 @@ async def get_container_logs(
     container_id: str,
     ctx: Context,
     tail: int = 100,
+    timestamps: bool = False,
+    since: str | int | None = None,
 ) -> str:
     """
     Get stdout/stderr logs from a container.
@@ -68,10 +70,21 @@ async def get_container_logs(
     """
     tail = min(tail, 500)
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(
+    params: dict[str, Any] = {"env": environment_id, "tail": tail}
+    if timestamps:
+        params["timestamps"] = "true"
+    if since is not None:
+        epoch = parse_since_to_epoch(since)
+        if epoch is not None:
+            params["since"] = epoch
+
+    data = await client.get(
         f"/api/containers/{encode_path(container_id)}/logs",
-        params={"env": environment_id, "tail": tail},
+        params=params,
     )
+    if isinstance(data, dict) and "logs" in data:
+        return data["logs"]
+    return data if isinstance(data, str) else str(data)
 
 async def get_container_stats(environment_id: int, container_id: str, ctx: Context) -> dict:
     """Get live resource usage statistics (CPU, memory, net I/O) for a container."""
@@ -348,7 +361,7 @@ async def chown_container_file(
 async def run_container_exec(
     environment_id: int,
     container_id: str,
-    cmd: list[str],
+    cmd: str | list[str],
     ctx: Context,
     user: str | None = None,
     working_dir: str | None = None,
@@ -357,9 +370,25 @@ async def run_container_exec(
     """
     Run a one-shot command in a container and wait for the result (returns stdout, stderr, exitCode).
     ⚠️ SECURITY WARNING: Executes arbitrary commands inside the target container and streams output into the chat context.
+
+    Args:
+        environment_id: Target environment ID.
+        container_id: Container name or ID.
+        cmd: Command to execute, either as a shell string (e.g. 'ps aux | grep nginx', run via /bin/sh -c)
+             or as a list of strings (e.g. ['ls', '-la']).
+        user: Optional user to execute the command as.
+        working_dir: Optional working directory.
+        max_bytes: Maximum output bytes to capture before truncation (default 10240).
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {"cmd": cmd}
+    if isinstance(cmd, str):
+        cmd_list = ["/bin/sh", "-c", cmd]
+    elif isinstance(cmd, list):
+        cmd_list = cmd
+    else:
+        raise ValueError("cmd must be a string or a list of strings")
+
+    body: dict[str, Any] = {"cmd": cmd_list}
     if user:
         body["user"] = user
     if working_dir:

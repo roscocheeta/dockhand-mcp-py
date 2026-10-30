@@ -3,6 +3,8 @@ Utility functions for the Dockhand MCP server.
 """
 
 import re
+import time
+from datetime import datetime, timezone
 from urllib.parse import quote
 from typing import Any
 
@@ -267,3 +269,65 @@ def clean_container_inspect(c: dict) -> dict:
             if "env" in c["config"]:
                 c["config"]["env"] = redact_env_secrets(c["config"]["env"])
     return c
+
+
+_DURATION_RE = re.compile(r"^(\d+)\s*([smhdw])$", re.IGNORECASE)
+_DURATION_MULTIPLIERS = {
+    "s": 1,
+    "m": 60,
+    "h": 3600,
+    "d": 86400,
+    "w": 604800,
+}
+
+
+def parse_since_to_epoch(since: str | int | None, now_epoch: int | None = None) -> int | None:
+    """
+    Parse a 'since' filter value into an integer Unix epoch timestamp (seconds).
+
+    Dockhand's log endpoint forwards 'since' to Go's strconv.ParseInt, requiring
+    an integer epoch timestamp. Passing relative durations like '1h' directly to
+    Dockhand causes an HTTP 500.
+
+    Supports:
+    - None -> None
+    - int (e.g. 1714400000) -> 1714400000
+    - Numeric string (e.g. '1714400000') -> 1714400000
+    - Relative duration (e.g. '30s', '10m', '1h', '24h', '7d', '2w') -> calculated epoch from now
+    - ISO 8601 timestamp (e.g. '2026-10-31T00:00:00Z') -> parsed epoch seconds
+    """
+    if since is None:
+        return None
+    if isinstance(since, int):
+        return since
+    if not isinstance(since, str):
+        raise ValueError(f"Invalid type for 'since': expected str or int, got {type(since).__name__}")
+
+    s = since.strip()
+    if not s:
+        return None
+
+    if s.isdigit():
+        return int(s)
+
+    m = _DURATION_RE.match(s)
+    if m:
+        val = int(m.group(1))
+        unit = m.group(2).lower()
+        multiplier = _DURATION_MULTIPLIERS[unit]
+        base_now = int(time.time()) if now_epoch is None else now_epoch
+        return base_now - (val * multiplier)
+
+    try:
+        iso_str = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except (ValueError, TypeError):
+        pass
+
+    raise ValueError(
+        f"Invalid 'since' value '{since}'. Expected an integer Unix epoch (e.g. 1714400000), "
+        "a relative duration (e.g. '30m', '1h', '24h', '7d'), or an ISO 8601 timestamp."
+    )

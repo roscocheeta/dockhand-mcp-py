@@ -67,3 +67,11 @@ An audit comparison between `dockhand-mcp-py` (Python) and the reference Node.js
 - [x] **SOPS (age) Secret Provider:** Supported SOPS age key decryption (`sops` provider type) with automatic `ageKey` / `age_key` sensitive redaction.
 - [x] **Interface Language Preference:** Added `get_language_preference` and `set_language_preference` (`/api/preferences/language`).
 - [x] **Pinned Digest Report Configuration:** Added `get_pinned_digest_report` and `set_pinned_digest_report` (`/api/settings/pinned-digest-report`).
+
+
+### Agent Ergonomics & Performance (Phase 1)
+- [x] **Git Stack Field Mapping & Compact Sync:** Fixed `_compact_git_stack` to properly map `stackName`, `repository.url`, `syncStatus`, and `composePath`. Added `_compact_sync_result` to strip massive SHA256 digest manifests and compose dumps.
+- [x] **Atomic GitOps Deployments (`sync_and_deploy_git_stack`):** Added `deploy=True` support to `sync_git_stack` and dedicated convenience tool `sync_and_deploy_git_stack` to eliminate LLM round-trips.
+- [x] **Shell Strings in `run_container_exec`:** Accepted `cmd: str | list[str]` with automatic normalization of shell strings to `["/bin/sh", "-c", cmd]`.
+- [x] **Enhanced Log Querying in `get_container_logs`:** Added `timestamps: bool = False` and duration/ISO/epoch `since` parameter with client-side normalization to integer Unix epoch seconds.
+- [x] **Batch Operations Schema Documentation & String Normalization:** Added full entity type documentation to `execute_batch_operation` and support for passing plain string lists (e.g. `items: ["radarr", "sonarr"]`).

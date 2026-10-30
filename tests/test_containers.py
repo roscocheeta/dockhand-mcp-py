@@ -508,3 +508,73 @@ async def test_container_scheduled_actions(mock_client, mock_ctx):
         )
         cleared = await set_container_scheduled_actions(1, "db-app", mock_ctx, start_at=None, stop_at=None)
         assert cleared["startAt"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_container_exec_string_and_list(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.containers import run_container_exec
+
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/containers/c1/exec/run?envId=1").mock(
+            return_value=Response(200, json={"stdout": "ok", "stderr": "", "exitCode": 0})
+        )
+
+        # Test string cmd -> wraps with /bin/sh -c
+        res_str = await run_container_exec(
+            environment_id=1,
+            container_id="c1",
+            cmd="ps aux | grep nginx",
+            ctx=mock_ctx,
+        )
+        assert route.called
+        sent_body = json.loads(route.calls.last.request.content)
+        assert sent_body["cmd"] == ["/bin/sh", "-c", "ps aux | grep nginx"]
+        assert res_str["stdout"] == "ok"
+
+        # Test list cmd -> sent as-is
+        res_list = await run_container_exec(
+            environment_id=1,
+            container_id="c1",
+            cmd=["python3", "app.py"],
+            ctx=mock_ctx,
+        )
+        sent_body = json.loads(route.calls.last.request.content)
+        assert sent_body["cmd"] == ["python3", "app.py"]
+
+        # Test invalid cmd type
+        with pytest.raises(ValueError, match="cmd must be a string or a list of strings"):
+            await run_container_exec(
+                environment_id=1,
+                container_id="c1",
+                cmd=123,
+                ctx=mock_ctx,
+            )
+
+
+@pytest.mark.asyncio
+async def test_get_container_logs_timestamps_and_since(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.containers import get_container_logs
+
+    with respx.mock:
+        # Test logs returning JSON dict {"logs": "..."}
+        route = respx.get(respx.patterns.M("http://dockhand.test/api/containers/c1/logs")).mock(
+            return_value=Response(200, json={"logs": "2026-10-31T00:00:00Z line1\nline2\n"})
+        )
+
+        logs = await get_container_logs(
+            environment_id=1,
+            container_id="c1",
+            ctx=mock_ctx,
+            timestamps=True,
+            since="1h",
+        )
+        assert route.called
+        req_params = dict(route.calls.last.request.url.params)
+        assert req_params["timestamps"] == "true"
+        assert req_params["since"].isdigit()
+        assert int(req_params["since"]) > 0
+        # Returned string directly, not dict
+        assert isinstance(logs, str)
+        assert "line1" in logs
