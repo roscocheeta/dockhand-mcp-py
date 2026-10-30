@@ -8,19 +8,19 @@ from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
 
 
-async def list_notifications(ctx: Context) -> list:
+async def list_notifications(ctx: Context = None) -> list:
     """List configured notifications/webhooks."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get("/api/notifications")
     return redact_sensitive_dict(data)
 
-async def create_notification(name: str, webhook_url: str, ctx: Context) -> dict:
+async def create_notification(name: str, webhook_url: str, ctx: Context = None) -> dict:
     """Create a new notification webhook."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.post("/api/notifications", json={"name": name, "url": webhook_url})
     return redact_sensitive_dict(data)
 
-async def list_schedules(ctx: Context) -> list:
+async def list_schedules(ctx: Context = None) -> list:
     """List configured automation schedules."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/schedules")
@@ -29,7 +29,7 @@ async def create_schedule(
     name: str, 
     cron_expression: str, 
     action: str, 
-    ctx: Context,
+    ctx: Context = None,
     vulnerability_criteria: dict | None = None,
     schedule_type: int | None = None,
     container_name: str | None = None,
@@ -55,38 +55,38 @@ async def create_schedule(
         
     return await client.post("/api/schedules", json=body)
 
-async def list_templates(ctx: Context) -> list:
+async def list_templates(ctx: Context = None) -> list:
     """List available App Templates."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/templates")
 
-async def list_labels(environment_id: int, ctx: Context) -> list:
+async def list_labels(environment_id: int, ctx: Context = None) -> list:
     """List all unique container labels in the environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/labels", params={"env": environment_id})
 
-async def get_preferences(ctx: Context) -> dict:
+async def get_preferences(ctx: Context = None) -> dict:
     """Get user preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/profile/preferences")
 
-async def set_preferences(preferences: dict, ctx: Context) -> dict:
+async def set_preferences(preferences: dict, ctx: Context = None) -> dict:
     """Set user preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/profile/preferences", json=preferences)
 
-async def list_secret_providers(ctx: Context) -> list:
+async def list_secret_providers(ctx: Context = None) -> list:
     """List configured external secret providers (e.g. HashiCorp Vault)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get("/api/secret-providers")
     return redact_sensitive_dict(data)
 
-async def list_config_sets(ctx: Context) -> list:
+async def list_config_sets(ctx: Context = None) -> list:
     """List configuration sets (environment variable collections)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/config-sets")
 
-async def get_auto_update(environment_id: int, container_id: str, ctx: Context) -> dict:
+async def get_auto_update(environment_id: int, container_id: str, ctx: Context = None) -> dict:
     """Check the auto-update policy for a container."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
@@ -94,7 +94,7 @@ async def get_auto_update(environment_id: int, container_id: str, ctx: Context) 
         params={"env": environment_id}
     )
 
-async def set_auto_update(environment_id: int, container_id: str, enabled: bool, ctx: Context) -> dict:
+async def set_auto_update(environment_id: int, container_id: str, enabled: bool, ctx: Context = None) -> dict:
     """Set the auto-update policy for a container."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put(
@@ -103,39 +103,39 @@ async def set_auto_update(environment_id: int, container_id: str, enabled: bool,
         params={"env": environment_id}
     )
 
-async def get_notification(notification_id: int, ctx: Context) -> dict:
+async def get_notification(notification_id: int, ctx: Context = None) -> dict:
     """Get details of a specific notification."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(f"/api/notifications/{encode_path(str(notification_id))}")
     return redact_sensitive_dict(data)
 
-async def get_secret_provider(provider_id: int, ctx: Context) -> dict:
+async def get_secret_provider(provider_id: int, ctx: Context = None) -> dict:
     """Get details of a specific secret provider."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(f"/api/secret-providers/{encode_path(str(provider_id))}")
     return redact_sensitive_dict(data)
 
-async def get_theme_settings(ctx: Context) -> dict:
+async def get_theme_settings(ctx: Context = None) -> dict:
     """Get UI theme settings."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/users/preferences/theme")
 
-async def update_theme_settings(theme: str, ctx: Context) -> dict:
+async def update_theme_settings(theme: str, ctx: Context = None) -> dict:
     """Update UI theme settings."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/users/preferences/theme", json={"theme": theme})
 
-async def get_sidebar_preferences(ctx: Context) -> dict:
+async def get_sidebar_preferences(ctx: Context = None) -> dict:
     """Get sidebar preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/preferences/sidebar")
 
-async def set_grid_preferences(grid: dict, ctx: Context) -> dict:
+async def set_grid_preferences(grid: dict, ctx: Context = None) -> dict:
     """Set UI grid layout preferences."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/preferences/grid", json=grid)
 
-async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Context) -> dict:
+async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Context = None) -> dict:
     """Bulk-delete backup snapshots from a specific destination."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
@@ -143,53 +143,53 @@ async def delete_snapshots(destination_id: int, snapshot_ids: list[str], ctx: Co
         json={"destinationId": destination_id, "snapshotIds": snapshot_ids}
     )
 
-async def get_environment_order(ctx: Context) -> list[int]:
+async def get_environment_order(ctx: Context = None) -> list[int]:
     """Retrieve the saved environment order (most preferred first)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get('/api/preferences/environment-order')
     return data.get('order', [])
 
-async def set_environment_order(order: list[int], ctx: Context) -> list[int]:
+async def set_environment_order(order: list[int], ctx: Context = None) -> list[int]:
     """Save the environment order (array of environment ids)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.post('/api/preferences/environment-order', json={'order': order})
     return data.get('order', [])
 
-async def reset_environment_order(ctx: Context) -> list[int]:
+async def reset_environment_order(ctx: Context = None) -> list[int]:
     """Reset the environment order back to the default."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.delete('/api/preferences/environment-order')
     return data.get('order', [])
 
-async def get_tag_order(ctx: Context) -> list[int]:
+async def get_tag_order(ctx: Context = None) -> list[int]:
     """Retrieve the saved tag order (most preferred first)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get('/api/preferences/tag-order')
     return data.get('order', [])
 
-async def set_tag_order(order: list[int], ctx: Context) -> list[int]:
+async def set_tag_order(order: list[int], ctx: Context = None) -> list[int]:
     """Save the tag order (array of tag ids)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.post('/api/preferences/tag-order', json={'order': order})
     return data.get('order', [])
 
-async def reset_tag_order(ctx: Context) -> list[int]:
+async def reset_tag_order(ctx: Context = None) -> list[int]:
     """Reset the tag order back to the default."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.delete('/api/preferences/tag-order')
     return data.get('order', [])
 
-async def get_minimum_release_age(ctx: Context) -> dict:
+async def get_minimum_release_age(ctx: Context = None) -> dict:
     """Get the global minimum image age in hours before automatic updates apply."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/settings/minimum-release-age")
 
-async def set_minimum_release_age(hours: int, ctx: Context) -> dict:
+async def set_minimum_release_age(hours: int, ctx: Context = None) -> dict:
     """Set the global minimum image age in hours (0 to 720) before automatic updates apply."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post("/api/settings/minimum-release-age", json={"hours": hours})
 
-async def create_secret_provider(name: str, type: str, config: dict, ctx: Context) -> dict:
+async def create_secret_provider(name: str, type: str, config: dict, ctx: Context = None) -> dict:
     """Create a secret provider (e.g. Vault, Infisical, Doppler, 1Password Connect, Psono, SOPS).
 
     SECURITY WARNING: The config parameter may contain sensitive credentials in plain text.
@@ -200,7 +200,7 @@ async def create_secret_provider(name: str, type: str, config: dict, ctx: Contex
 
 async def update_secret_provider(
     provider_id: int,
-    ctx: Context,
+    ctx: Context = None,
     name: str | None = None,
     type: str | None = None,
     config: dict | None = None,
@@ -220,7 +220,7 @@ async def update_secret_provider(
     data = await client.put(f"/api/secret-providers/{encode_path(str(provider_id))}", json=body)
     return redact_sensitive_dict(data)
 
-async def delete_secret_provider(provider_id: int, ctx: Context) -> dict:
+async def delete_secret_provider(provider_id: int, ctx: Context = None) -> dict:
     """Delete a secret provider."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(f"/api/secret-providers/{encode_path(str(provider_id))}")
@@ -229,7 +229,7 @@ async def execute_batch_operation(
     operation: str,
     entity_type: str,
     items: list[str | dict[str, Any]],
-    ctx: Context,
+    ctx: Context = None,
     environment_id: int | None = None,
     force: bool = False,
     remove_volumes: bool = False,
@@ -279,22 +279,22 @@ async def execute_batch_operation(
     }
     return await client.post_sse("/api/batch", json=body, params=params)
 
-async def get_language_preference(ctx: Context) -> dict:
+async def get_language_preference(ctx: Context = None) -> dict:
     """Get the interface language preference stored on the server (returns {'language': str | None})."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/preferences/language")
 
-async def set_language_preference(ctx: Context, language: str | None = None) -> dict:
+async def set_language_preference(ctx: Context = None, language: str | None = None) -> dict:
     """Set the interface language preference on the server (locale code, or None to follow the browser)."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/preferences/language", json={"language": language})
 
-async def get_pinned_digest_report(ctx: Context) -> dict:
+async def get_pinned_digest_report(ctx: Context = None) -> dict:
     """Get whether moved digests on pinned images are reported globally (returns {'enabled': bool})."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/settings/pinned-digest-report")
 
-async def set_pinned_digest_report(enabled: bool, ctx: Context) -> dict:
+async def set_pinned_digest_report(enabled: bool, ctx: Context = None) -> dict:
     """Set whether moved digests on pinned images are reported globally."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post("/api/settings/pinned-digest-report", json={"enabled": enabled})

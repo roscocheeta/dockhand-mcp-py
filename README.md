@@ -7,6 +7,10 @@ Written in Python using the `mcp` SDK and FastMCP.
 ## Features
 
 - **Transparent Auth**: Supports both scoped Bearer API tokens (`DOCKHAND_API_TOKEN`) and session-cookie login (`DOCKHAND_USERNAME` + `DOCKHAND_PASSWORD`) with ~24h session refresh and an `asyncio.Lock` to prevent concurrent 401 retry floods.
+- **Agent Ergonomics & Auto-Resolution**: `environment_id` is optional across all tools, auto-resolving to the primary host environment or `DOCKHAND_DEFAULT_ENV`. Git stacks can be referenced by human-readable names (e.g. `stack_id="radarr"`) without pre-querying stack IDs.
+- **Token Efficiency & Compact Inspect**: Compact listings, truncated IDs (12 chars), and noisy label filtering. `compact: true` inspect mode drops bulky engine internals (graph drivers, image layers), reducing container inspection footprint by up to 65%.
+- **Atomic GitOps Deployments**: `sync_and_deploy_git_stack` (and `sync_git_stack(deploy=True)`) syncs and deploys in a single LLM invocation.
+- **Shell Strings in Exec**: `run_container_exec` accepts plain shell strings (`cmd: "ps aux | grep nginx"`), automatically executing via `["/bin/sh", "-c", cmd]`.
 - **Protocol Safe**: Explicitly routes all Python logging to `sys.stderr` to prevent JSON-RPC transport corruption.
 - **Secure & Guardrailed**: Automatically redacts sensitive credentials (`hawserToken`, `tlsKey`, `.env` secrets, webhook tokens, OIDC/LDAP secrets) from API responses, attaches MCP `ToolAnnotations` (`readOnlyHint`, `destructiveHint`), and supports a strict `DOCKHAND_READ_ONLY=true` mode.
 

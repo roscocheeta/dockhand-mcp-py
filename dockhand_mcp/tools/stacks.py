@@ -31,34 +31,45 @@ def _compact_stack(s: dict) -> dict:
     return res
 
 
-async def list_stacks(environment_id: int, ctx: Context) -> list:
+def _normalize_stack_args(name: Any, ctx: Any, env: Any) -> tuple[str, Any, int | None]:
+    if isinstance(name, int):
+        return str(ctx), env, name
+    return name, ctx, env
+
+
+async def list_stacks(environment_id: int | None = None, ctx: Context = None, *args: Any) -> list:
     """List all Docker Compose stacks in an environment."""
+    if environment_id is not None and not isinstance(environment_id, int):
+        ctx, environment_id = environment_id, None
     client = ctx.request_context.lifespan_context["dockhand"]
-    stacks = await client.get("/api/stacks", params={"env": environment_id})
+    env_id = await client.resolve_environment_id(environment_id)
+    stacks = await client.get("/api/stacks", params={"env": env_id})
     if isinstance(stacks, list):
         return [_compact_stack(s) for s in stacks]
     return stacks
 
 async def create_stack(
-    environment_id: int,
     name: str,
     compose: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
     compose_path: str | None = None,
     env_path: str | None = None,
     start: bool = True,
     env_vars: list[dict[str, Any]] | None = None,
     raw_env_content: str | None = None,
     secret_provider_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Create a new internal Docker Compose stack from a raw YAML string.
 
     For Git-backed stacks, use the `create_git_stack` tool instead.
 
     Args:
-        environment_id: Environment ID where the stack will be created.
         name: Name of the new stack.
         compose: Docker Compose YAML file content as string (required).
+        ctx: FastMCP Context.
+        environment_id: Environment ID where the stack will be created (optional; defaults to active environment).
         compose_path: Optional explicit path on disk for the compose file.
         env_path: Optional explicit path on disk for the .env file.
         start: Start/deploy the stack immediately after creation (default: True).
@@ -66,6 +77,8 @@ async def create_stack(
         raw_env_content: Optional raw .env file content string.
         secret_provider_id: Optional secret provider ID to bind to the stack.
     """
+    if isinstance(name, int):
+        environment_id, name, compose, ctx = name, str(compose), str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {
         "name": name,
@@ -83,14 +96,15 @@ async def create_stack(
     if secret_provider_id is not None:
         body["secretProviderId"] = secret_provider_id
 
-    return await client.post_sse("/api/stacks", json=body, params={"env": environment_id})
+    return await client.post_sse("/api/stacks", json=body, params={"env": await client.resolve_environment_id(environment_id)})
 
-async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dict:
+async def get_stack_compose(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Get the docker-compose.yml content for a stack. Inline secret environment variables are redacted."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/stacks/{encode_path(name)}/compose", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     if isinstance(data, dict):
         data = dict(data)
@@ -103,16 +117,19 @@ async def get_stack_compose(environment_id: int, name: str, ctx: Context) -> dic
     return data
 
 async def update_stack_compose(
-    environment_id: int, 
     name: str, 
     content: str, 
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None, 
     restart: bool = False,
     pull: bool | None = None,
     build: bool | None = None,
     force_recreate: bool | None = None,
+    *args: Any
 ) -> dict:
     """Update the compose file content for a stack. Optionally redeploy after update."""
+    if isinstance(name, int):
+        environment_id, name, content, ctx = name, str(content), str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {"content": content}
     if pull is not None:
@@ -126,29 +143,31 @@ async def update_stack_compose(
         return await client.put_sse(
             f"/api/stacks/{encode_path(name)}/compose", 
             json=body, 
-            params={"env": environment_id}
+            params={"env": await client.resolve_environment_id(environment_id)}
         )
     return await client.put(
         f"/api/stacks/{encode_path(name)}/compose", 
         json=body, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
-async def get_stack_env(environment_id: int, name: str, ctx: Context) -> dict:
+async def get_stack_env(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Get the structured environment variables (.env) for a stack. Secret values are redacted."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/stacks/{encode_path(name)}/env", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     return redact_sensitive_dict(data)
 
-async def get_stack_env_raw(environment_id: int, name: str, ctx: Context) -> dict:
+async def get_stack_env_raw(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Get the raw .env file contents for a stack. Secret values are redacted."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/stacks/{encode_path(name)}/env/raw", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     if isinstance(data, dict) and isinstance(data.get("content"), str):
         data = dict(data)
@@ -159,20 +178,23 @@ async def get_stack_env_raw(environment_id: int, name: str, ctx: Context) -> dic
     return data
 
 async def update_stack_env_raw(
-    environment_id: int, 
     name: str, 
     content: str, 
-    ctx: Context
+    ctx: Context = None,
+    environment_id: int | None = None, 
+    *args: Any
 ) -> dict:
     """
     Update the full .env file content for a stack. Empty string deletes it.
     ⚠️ SECURITY WARNING: Passing secret values in content exposes them in plain text within your chat history.
     """
+    if isinstance(name, int):
+        environment_id, name, content, ctx = name, str(content), str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.put(
         f"/api/stacks/{encode_path(name)}/env/raw", 
         json={"content": content}, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     if isinstance(data, dict) and isinstance(data.get("content"), str):
         data = dict(data)
@@ -180,14 +202,16 @@ async def update_stack_env_raw(
     return redact_sensitive_dict(data)
 
 async def deploy_stack(
-    environment_id: int, 
     name: str, 
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None, 
     pull: bool = True,
     build: bool = False,
-    force_recreate: bool = False
+    force_recreate: bool = False,
+    *args: Any
 ) -> dict:
     """Deploy or update a stack (Docker Compose up)."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "pull": pull,
@@ -197,34 +221,38 @@ async def deploy_stack(
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/deploy", 
         json=body, 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
-async def start_stack(environment_id: int, name: str, ctx: Context) -> dict:
+async def start_stack(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Start a stopped stack."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/start", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
-async def stop_stack(environment_id: int, name: str, ctx: Context) -> dict:
+async def stop_stack(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Stop a running stack."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/stop", 
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def restart_stack(
-    environment_id: int,
     name: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
     mode: str | None = None,
+    *args: Any
 ) -> dict:
     """Restart a stack (mode='restart' | 'ordered' | 'recreate')."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
-    params: dict[str, Any] = {"env": environment_id}
+    params: dict[str, Any] = {"env": await client.resolve_environment_id(environment_id)}
     if mode is not None:
         params["mode"] = mode
     return await client.post_sse(
@@ -233,30 +261,34 @@ async def restart_stack(
     )
 
 async def down_stack(
-    environment_id: int, 
     name: str, 
-    ctx: Context,
-    remove_volumes: bool = False
+    ctx: Context = None,
+    environment_id: int | None = None, 
+    remove_volumes: bool = False,
+    *args: Any
 ) -> dict:
     """⚠️ DESTRUCTIVE: Tear down a stack (Docker Compose down). If remove_volumes is True, all data is lost."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"removeVolumes": remove_volumes} if remove_volumes else None
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/down", 
         json=body,
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def delete_stack(
-    environment_id: int, 
     name: str, 
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None, 
     force: bool = False,
-    files: bool = True
+    files: bool = True,
+    *args: Any
 ) -> dict:
     """⚠️ DESTRUCTIVE: Delete a stack and optionally its files from disk. Permanent deletion."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
-    params = {"env": environment_id}
+    params = {"env": await client.resolve_environment_id(environment_id)}
     if force:
         params["force"] = "true"
     if not files:
@@ -267,119 +299,140 @@ async def delete_stack(
     )
 
 async def update_stack_env(
-    environment_id: int,
     name: str,
     env_vars: list[dict[str, Any]],
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """
     Update stack environment variables with structured merge/replace.
     ⚠️ SECURITY WARNING: Passing secret env_vars exposes them in plain text within your chat history.
     """
+    if isinstance(name, int):
+        environment_id, name, env_vars, ctx = name, str(env_vars), ctx, environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.put(
         f"/api/stacks/{encode_path(name)}/env",
         json={"envVars": env_vars},
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     return redact_sensitive_dict(data)
 
 async def remove_stack_env_vars(
-    environment_id: int,
     name: str,
     keys: list[str],
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Selectively remove environment variables from a stack's .env or DB."""
+    if isinstance(name, int):
+        environment_id, name, keys, ctx = name, str(keys), ctx, environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/stacks/{encode_path(name)}/env",
         json={"keys": keys},
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def check_stack_env_collisions(
-    environment_id: int,
     name: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Check for environment variable collisions."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/stacks/{encode_path(name)}/env/collisions",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def validate_stack_env(
-    environment_id: int,
     name: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Validate a stack's environment configuration."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/stacks/{encode_path(name)}/env/validate",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def get_stack_delete_preview(
-    environment_id: int,
     name: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Get a preview of what will be deleted when removing a stack."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/stacks/{encode_path(name)}/delete-preview",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def adopt_stack(
-    environment_id: int,
     name: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Adopt an existing unmanaged stack into Dockhand."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
         f"/api/stacks/{encode_path(name)}/adopt",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def relocate_stack(
-    environment_id: int,
     name: str,
     new_path: str,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    *args: Any
 ) -> dict:
     """Relocate a stack to a new path on the host."""
+    if isinstance(name, int):
+        environment_id, name, new_path, ctx = name, str(new_path), str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
         f"/api/stacks/{encode_path(name)}/relocate",
         json={"newPath": new_path},
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
-async def get_stack_deploy_history(environment_id: int, name: str, ctx: Context) -> dict:
+async def get_stack_deploy_history(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Get the deployment history runs for a stack."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/stacks/{encode_path(name)}/deploys",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
 
 async def get_stack_deploy_log(
-    environment_id: int,
     name: str,
     run_id: int,
-    ctx: Context,
+    ctx: Context = None,
+    environment_id: int | None = None,
     max_bytes: int = 20480,
+    *args: Any
 ) -> dict:
     """Get the raw deployment log text for a specific stack deploy run (truncated to max_bytes, default 20KB)."""
+    if isinstance(name, int):
+        environment_id, name, run_id, ctx = name, str(run_id), int(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/stacks/{encode_path(name)}/deploys/{encode_path(str(run_id))}/log",
-        params={"env": environment_id}
+        params={"env": await client.resolve_environment_id(environment_id)}
     )
     if max_bytes and max_bytes > 0:
         if isinstance(data, dict):
@@ -393,15 +446,18 @@ async def get_stack_deploy_log(
             return data[:max_bytes] + f"\n... [TRUNCATED AT {max_bytes} BYTES]"
     return data
 
-async def get_stack_stats(environment_id: int, ctx: Context) -> list:
+async def get_stack_stats(environment_id: int | None = None, ctx: Context = None, *args: Any) -> list:
     """Return a CPU/memory/network/block-IO stats snapshot per compose stack in an environment."""
+    if environment_id is not None and not isinstance(environment_id, int):
+        ctx, environment_id = environment_id, None
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/stack-stats", params={"env": environment_id})
+    return await client.get("/api/stack-stats", params={"env": await client.resolve_environment_id(environment_id)})
 
-async def get_stack_path_hints(environment_id: int, name: str, ctx: Context) -> dict:
+async def get_stack_path_hints(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
     """Return path hints (working directory and config file paths) extracted from a stack's Docker container labels."""
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/stacks/path-hints", params={"name": name, "env": environment_id})
+    return await client.get("/api/stacks/path-hints", params={"name": name, "env": await client.resolve_environment_id(environment_id)})
 
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
@@ -428,4 +484,3 @@ def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_stack_deploy_log)
     mcp.add_tool(get_stack_stats)
     mcp.add_tool(get_stack_path_hints)
-
