@@ -1,214 +1,195 @@
 # Dockhand MCP Server
 
-A Model Context Protocol (MCP) server for [Dockhand](https://dockhand.dev/), enabling LLM agents (like Claude, Cursor, or Antigravity) to manage and monitor your Docker environments, containers, and images.
+[![CI Tests](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/test.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/test.yml)
+[![Security & Audit](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/security.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/security.yml)
+[![CodeQL Analysis](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/codeql.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/codeql.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/roscocheeta/dockhand-mcp-py?color=blue&logo=github)](https://github.com/roscocheeta/dockhand-mcp-py/releases)
+[![Python Versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Written in Python using the `mcp` SDK and FastMCP.
+A high-performance Model Context Protocol (MCP) server for [Dockhand](https://dockhand.dev/), enabling LLM agents (Claude Desktop, Cursor, Antigravity, Windsurf) to monitor, inspect, and manage Docker environments, containers, compose stacks, and GitOps workflows.
 
-## Features
+Written in Python using the official `mcp` SDK and FastMCP.
 
-- **Transparent Auth**: Supports both scoped Bearer API tokens (`DOCKHAND_API_TOKEN`) and session-cookie login (`DOCKHAND_USERNAME` + `DOCKHAND_PASSWORD`) with ~24h session refresh and an `asyncio.Lock` to prevent concurrent 401 retry floods.
-- **Agent Ergonomics & Auto-Resolution**: `environment_id` is optional across all tools, auto-resolving to the primary host environment or `DOCKHAND_DEFAULT_ENV`. Git stacks can be referenced by human-readable names (e.g. `stack_id="radarr"`) without pre-querying stack IDs.
-- **Token Efficiency & Compact Inspect**: Compact listings, truncated IDs (12 chars), and noisy label filtering. `compact: true` inspect mode drops bulky engine internals (graph drivers, image layers), reducing container inspection footprint by up to 65%.
-- **Atomic GitOps Deployments**: `sync_and_deploy_git_stack` (and `sync_git_stack(deploy=True)`) syncs and deploys in a single LLM invocation.
-- **Shell Strings in Exec**: `run_container_exec` accepts plain shell strings (`cmd: "ps aux | grep nginx"`), automatically executing via `["/bin/sh", "-c", cmd]`.
-- **Protocol Safe**: Explicitly routes all Python logging to `sys.stderr` to prevent JSON-RPC transport corruption.
-- **Secure & Guardrailed**: Automatically redacts sensitive credentials (`hawserToken`, `tlsKey`, `.env` secrets, webhook tokens, OIDC/LDAP secrets) from API responses, attaches MCP `ToolAnnotations` (`readOnlyHint`, `destructiveHint`), and supports a strict `DOCKHAND_READ_ONLY=true` mode.
+---
 
-## Available Tools
+## Key Features
 
-The server exposes the following tools to the LLM agent:
+- **Agent Ergonomics & Auto-Resolution**:
+  - `environment_id` is optional across all tools, auto-resolving to the primary host environment in single-host setups or via `DOCKHAND_DEFAULT_ENV`.
+  - Git stacks can be referenced by human-readable names (e.g. `stack_id="radarr"`) without pre-querying numeric stack IDs.
+- **Token Efficiency & Compact Inspect Mode**:
+  - Compact container listings, truncated 12-char SHA256 IDs, and noisy label suppression.
+  - `compact: true` inspect mode for `get_container` and `inspect_container` drops bulky Docker engine internals (graph drivers, layer trees), reducing LLM context window consumption by up to 65%.
+- **Atomic GitOps Deployments**:
+  - `sync_and_deploy_git_stack` (and `sync_git_stack(deploy=True)`) syncs and deploys in a single round-trip, stripping massive SHA256 digest manifests.
+- **Shell Strings in Container Exec**:
+  - `run_container_exec` accepts plain shell strings (`cmd: "ps aux | grep nginx"`), automatically executing via `["/bin/sh", "-c", cmd]`.
+- **Advanced Log Querying**:
+  - `get_container_logs` supports `timestamps: bool = True` and human relative durations or ISO timestamps (`since="1h"` or `since="24h"`).
+- **Transparent Authentication**:
+  - Supports scoped Bearer API tokens (`DOCKHAND_API_TOKEN`) and session-cookie login (`DOCKHAND_USERNAME` + `DOCKHAND_PASSWORD`) with proactive ~24h session refresh and an `asyncio.Lock` preventing concurrent 401 retry storms.
+- **Protocol Safety**:
+  - Explicitly routes all Python logging to `sys.stderr` to prevent JSON-RPC transport corruption over stdio.
+- **Proactive Security & Guardrails**:
+  - Automatically redacts sensitive credentials (`hawserToken`, `tlsKey`, `.env` secrets, passwords, webhook tokens, OIDC/LDAP secrets) from all API responses.
+  - Enforces MCP `ToolAnnotations` (`readOnlyHint`, `destructiveHint`) and an optional strict `DOCKHAND_READ_ONLY=true` mode.
 
-### System & Health
-- `health_check`: Check connectivity to the Dockhand instance.
-- `get_server_info`: Fetch Dockhand system/version information.
-- `get_host_info`: Fetch OS and host hardware information.
-- `get_changelog`: Get the Dockhand release changelog.
-- `prune_all`, `prune_containers`, `prune_images`, `prune_networks`, `prune_volumes`: System pruning tools.
+---
 
-### Environments
-- `list_environments`: List all Docker hosts managed by Dockhand.
-- `get_environment`: Get details for a specific environment (automatically strips `tlsKey` and `hawserToken` for security).
-- `create_environment`, `update_environment`, `delete_environment`: Manage environment configurations.
-- `test_environment`: Validate connectivity to an environment.
-- `get_environment_update_check_settings`, `update_environment_update_check_settings`: Manage automatic container update-check schedules and minimum release age overrides.
-- `get_environment_report`, `get_environment_report_settings`, `update_environment_report_settings`: Export environment state reports and configure scheduled reports.
+## Configuration Reference
 
-### Containers
-- **Read**: `list_containers`, `get_container`, `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`
-- **Logs & Files**: `get_container_logs` (tail stdout/stderr), `list_container_files`, `get_container_file_content`, `upload_container_file`, `write_container_file_content`, `delete_container_file`, `rename_container_file`, `chown_container_file`, `create_container_path`
-- **Write & Updates**: `create_container`, `update_container`, `rename_container`, `delete_container` (with force flag), `check_container_updates`, `get_pending_container_updates`, `get_container_scheduled_actions`, `set_container_scheduled_actions`
-- **Lifecycle & Exec**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `exec_container`, `run_container_exec`
+The server is configured via environment variables:
+
+| Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `DOCKHAND_URL` / `DOCKHAND_BASE_URL` | String | *(Required)* | Base URL of your Dockhand instance (e.g. `http://dockhand.local:3866`). |
+| `DOCKHAND_API_TOKEN` | String | *None* | Scoped Bearer API token created in Dockhand (Recommended). |
+| `DOCKHAND_USERNAME` | String | *None* | Username for cookie-based session login (alternative to API token). |
+| `DOCKHAND_PASSWORD` | String | *None* | Password for cookie-based session login. |
+| `DOCKHAND_DEFAULT_ENV` | Integer | *Auto* | Default environment ID override. If omitted, auto-resolves single environment. |
+| `DOCKHAND_READ_ONLY` | Boolean | `false` | When `true`, exposes only read-only tools and blocks all POST/PUT/DELETE calls. |
+| `DOCKHAND_VERIFY_SSL` | Boolean | `true` | Set to `false` if your homelab uses private self-signed TLS certificates. |
+| `DOCKHAND_TIMEOUT` | Float | `60.0` | Request timeout in seconds for standard HTTP endpoints. |
+| `DOCKHAND_DISABLE_TOOLS` | String | *None* | Comma-separated list of tool names to hide from the registered catalog. |
+
+---
+
+## Client Setup
+
+### Claude Desktop
+
+Add the following to your `claude_desktop_config.json`:
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "dockhand": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
+      "env": {
+        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
+        "DOCKHAND_API_TOKEN": "dh_your_api_token_here"
+      }
+    }
+  }
+}
+```
+
+### Antigravity (IDE & CLI)
+
+Configure globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "dockhand": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
+      "env": {
+        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
+        "DOCKHAND_API_TOKEN": "dh_your_api_token_here"
+      }
+    }
+  }
+}
+```
+
+### Cursor / Windsurf / VS Code
+
+In your extension's MCP settings configuration (`mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "dockhand": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
+      "env": {
+        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
+        "DOCKHAND_API_TOKEN": "dh_your_api_token_here"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Available Tools (74+ Tools)
+
+### Containers & Scheduled Actions
+- **Inspection & State**: `list_containers` (supports `status="running"` filter), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
+- **Logs & Execution**: `get_container_logs` (supports `tail`, `timestamps=True`, `since="1h"`), `run_container_exec` (accepts shell strings or argument arrays), `exec_container`.
+- **File System Operations**: `list_container_files`, `get_container_file_content` (with truncation), `write_container_file_content`, `upload_container_file` (base64 encoded), `create_container_path`, `chown_container_file`, `delete_container_file`, `rename_container_file`.
+- **Lifecycle & Updates**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `create_container`, `update_container`, `rename_container`, `delete_container`, `check_container_updates`, `get_pending_container_updates`.
+- **Scheduled Actions**: `get_container_scheduled_actions`, `set_container_scheduled_actions` (daily start/stop or cron).
 
 ### Stacks (Docker Compose)
-- `list_stacks`, `create_stack`, `get_stack_compose`, `update_stack_compose`, `get_stack_stats`, `get_stack_path_hints`
-- `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`
-- `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack`, `down_stack`, `delete_stack`, `get_stack_delete_preview`
-- `adopt_stack`, `relocate_stack`, `get_stack_deploy_history`, `get_stack_deploy_log`
+- **Deployment & Lifecycle**: `list_stacks`, `create_stack`, `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack` (supports `mode="restart"|"ordered"|"recreate"`), `down_stack`, `delete_stack`, `adopt_stack`, `relocate_stack`.
+- **Compose & Metrics**: `get_stack_compose`, `update_stack_compose` (supports `pull`, `build`, `force_recreate`), `get_stack_stats`, `get_stack_path_hints`, `get_stack_deploy_history`, `get_stack_deploy_log`.
+- **Environment Management**: `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`, `get_stack_delete_preview`.
 
-### Git Stacks
-- `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack`, `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`
-- `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`
-- `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`
+### Git Stacks & GitOps
+- **Git Stacks**: `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack` (with `deploy=True`), `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`. *All stack tools accept human names (e.g. `"radarr"`).*
+- **Git Repositories & Credentials**: `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`, `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`.
 
-### Networks & Volumes
-- `list_networks`, `inspect_network`, `delete_network`
-- `list_volumes`, `inspect_volume`, `delete_volume`
+### Environments & System
+- **Environments**: `list_environments`, `get_environment`, `create_environment`, `update_environment`, `delete_environment`, `test_environment`, `get_environment_update_check_settings`, `update_environment_update_check_settings`, `get_environment_report`, `get_environment_report_settings`, `update_environment_report_settings`.
+- **System & Pruning**: `health_check`, `get_server_info`, `get_host_info`, `get_changelog`, `prune_all`, `prune_containers`, `prune_images`, `prune_networks`, `prune_volumes`.
 
-### Tags
-- `list_tags`, `create_tag`, `update_tag`, `delete_tag`, `get_stack_tags`, `set_stack_tags`
+### Networks, Volumes & Images
+- **Networks**: `list_networks`, `get_network`, `inspect_network`, `create_network`, `delete_network`.
+- **Volumes**: `list_volumes`, `get_volume`, `inspect_volume`, `create_volume`, `delete_volume`.
+- **Images**: `list_images`, `get_image_history`, `remove_image`, `pull_image` (with optional vulnerability scan), `tag_image`, `push_image`.
 
-### Administration & Security
-- **Users/Auth:** `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_passkeys`, `delete_passkey`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`
-- **Registries:** `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`
-- **Audit/Stats:** `get_audit_log`, `get_audit_users`, `get_dashboard`, `get_activity`
+### Security, Users & Preferences
+- **Security & Scans**: `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image` (Grype or Trivy).
+- **Users, Tokens & Passkeys**: `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_passkeys`, `delete_passkey`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`.
+- **Registries & Secret Providers**: `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider` (Psono, SOPS age key).
+- **Batch & Preferences**: `execute_batch_operation`, `get_minimum_release_age`, `set_minimum_release_age`, `get_pinned_digest_report`, `set_pinned_digest_report`, `get_language_preference`, `set_language_preference`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`, `list_tags`, `create_tag`, `update_tag`, `delete_tag`, `get_stack_tags`, `set_stack_tags`.
 
-### Automation & Misc
-- **Schedules, Updates & Batch:** `list_schedules`, `create_schedule`, `get_auto_update`, `set_auto_update`, `get_minimum_release_age`, `set_minimum_release_age`, `execute_batch_operation`, `get_pinned_digest_report`, `set_pinned_digest_report`
-- **Backups:** `delete_snapshots`
-- **Alerts & Scans:** `list_notifications`, `get_notification`, `create_notification`, `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image`
-- **Config:** `list_templates`, `list_labels`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider`, `list_config_sets`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_language_preference`, `set_language_preference`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`
+---
 
-## Security & Privacy Note
+## Security Invariants
 
-This MCP server acts as a bridge between the AI model and your Dockhand instance. The AI model **must** be provided with the arguments required to execute tools. 
+1. **Zero Secret Leakage**: Passwords, tokens, and private keys (`hawserToken`, `tlsKey`) are automatically stripped before response serialization.
+2. **Read-Only Enforcement**: When `DOCKHAND_READ_ONLY=true` is set, all write operations (`create_*`, `update_*`, `delete_*`, `prune_*`) fail-fast before invoking network requests.
+3. **Transport Integrity**: All diagnostic logging writes to `sys.stderr`. Standard output (`sys.stdout`) is reserved exclusively for JSON-RPC frame delivery.
+4. **Input Sanitization**: Dynamic URL path segments pass through strict URL encoding (`encode_path`) to prevent path traversal or injection.
 
-> [!WARNING]
-> Tools such as `create_registry`, `create_user`, and `update_user` accept passwords as parameters. If you ask the AI to create a registry or user, it will need to know the password, which means the password will appear in your chat history and the server logs. 
-> 
-> **Best Practice:** Only use these tools for throwaway or development credentials. For production systems, you should create users and registries directly through the Dockhand web UI.
-
-To protect your data during read operations, the server automatically masks or strips known secrets (like passwords, SSH keys, API tokens, and sensitive environment variables) from API responses before passing them to the AI context.
-
-## Prerequisites
-
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) (recommended for easy execution)
-
-## Configuration
-
-The server requires `DOCKHAND_URL` and either a Bearer API token (`DOCKHAND_API_TOKEN`, recommended) or username/password credentials:
-
-```env
-DOCKHAND_URL=http://your-dockhand-instance:3866
-
-# Option 1 (Recommended): Scoped API Token
-DOCKHAND_API_TOKEN=dh_your_api_token_here
-
-# Option 2: Session Cookie Login
-DOCKHAND_USERNAME=your-username
-DOCKHAND_PASSWORD=your-password
-```
-
-Optional configuration:
-```env
-# Set to 'false' if your homelab uses self-signed certificates
-DOCKHAND_VERIFY_SSL=true
-
-# Set to 'true' to expose only read-only tools and block POST/PUT/DELETE requests
-DOCKHAND_READ_ONLY=false
-```
-
-> **Security Note:** It is highly recommended to create a dedicated Service Account in Dockhand for this MCP server, rather than using your personal admin credentials.
-
-## Usage
-
-### Using with Claude Desktop
-
-Add the following to your `claude_desktop_config.json` (usually located at `%APPDATA%\Claude\claude_desktop_config.json` on Windows or `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
-```json
-{
-  "mcpServers": {
-    "dockhand": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/your-username/Dockhand-MCP-Server-Windows.git", "dockhand-mcp"],
-      "env": {
-        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
-        "DOCKHAND_USERNAME": "your-username",
-        "DOCKHAND_PASSWORD": "your-password"
-      }
-    }
-  }
-}
-```
-*(Note: adjust the `--from` path to wherever you publish this repository, or point to a local directory using `--from /path/to/repo`).*
-
-### Using with VSCode / VSCodium (Cline, Roo-Code, etc.)
-
-If you are using an AI coding assistant inside VSCode (such as Cline or Roo-Code), you can add the server to your MCP settings file (usually accessed via the extension's MCP menu, which maps to `mcp_settings.json` or `cline_mcp_settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "dockhand": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
-      "env": {
-        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
-        "DOCKHAND_USERNAME": "your-username",
-        "DOCKHAND_PASSWORD": "your-password"
-      }
-    }
-  }
-}
-```
-
-### Using with Antigravity (CLI or Desktop)
-
-Whether you are using the Antigravity Desktop app or running the `agy` CLI in a terminal (like VSCodium), the MCP configuration uses the exact same schema. 
-
-You can configure it globally or per-workspace by adding the following JSON to an `mcp_config.json` file:
-
-**Global Location (Applies everywhere):**
-`~/.gemini/config/mcp_config.json`
-
-**Workspace Location (Applies only to a specific project):**
-`.agents/mcp_config.json` (Create this file at the root of your project)
-
-```json
-{
-  "mcpServers": {
-    "dockhand": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/roscocheeta/dockhand-mcp-py.git", "dockhand-mcp"],
-      "env": {
-        "DOCKHAND_URL": "http://your-dockhand-instance:3866",
-        "DOCKHAND_USERNAME": "your-username",
-        "DOCKHAND_PASSWORD": "your-password"
-      }
-    }
-  }
-}
-```
-
-### Local Development Usage
+---
 
 ## Development & Testing
 
-This project uses `uv` for dependency management.
+This project uses [`uv`](https://docs.astral.sh/uv/) for Python packaging and testing.
 
 ```bash
-# Setup the virtual environment and install dependencies
+# Clone the repository
+git clone https://github.com/roscocheeta/dockhand-mcp-py.git
+cd dockhand-mcp-py
+
+# Install dependencies and sync virtual environment
 uv sync --extra dev
 
-# Run the test suite
-uv run pytest
+# Run full test suite with coverage
+uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
+
+# Run security audit on dependencies
+uv tool run pip-audit
+
+# Verify package build
+uv build
 ```
 
-### Testing Strategy
+### Contributing & Guidelines
+For detailed branching rules, CI/CD specifications, testing hygiene, and the release recipe, see [AGENT.md](AGENT.md).
 
-The test suite is fully hermetic and runs offline—it does not require a live Dockhand instance. We achieve this using:
-- **`pytest`** & **`pytest-asyncio`**: For running asynchronous test cases.
-- **`respx`**: For intercepting and mocking `httpx` HTTP requests at the network level.
-
-If you are writing new tests (or having an AI write them), use the `mock_router` fixture (defined in `tests/conftest.py`). This fixture intercepts all requests matching the test base URL, allowing you to easily simulate Dockhand backend responses, 401 Unauthorized errors, or network latency without making real HTTP calls.
-
-### Architecture
-
-- **`client.py`**: Wraps `httpx.AsyncClient` with a robust `DockhandAuth` state machine. It guarantees thread-safe login using an `asyncio.Lock` and proactively tracks the ~24h session expiry to prevent 401 floods.
-- **`server.py`**: Initializes the `FastMCP` application and manages the client lifecycle. Explicitly routes all Python `logging` to `sys.stderr` to prevent corrupting the MCP JSON-RPC protocol over `stdout`.
-- **`tools/`**: Maps cleanly to the Dockhand REST API, utilizing Pydantic types inferred by FastMCP.
+---
 
 ## License
 
-MIT
+[MIT License](LICENSE)
