@@ -134,8 +134,7 @@ When preparing and publishing a new release:
    ```
 2. **Version & Documentation Bump**:
    - Update `version = "X.Y.Z"` in `pyproject.toml`.
-   - Update `ENHANCEMENTS.md` marking completed features and documenting new additions.
-   - Update `README.md` features and tool tables if new tools were added.
+   - Update `README.md` features, tool tables, and roadmap.
 3. **Execute Local Quality Gates**:
    ```bash
    uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
