@@ -192,6 +192,15 @@ We welcome contributions! Please review:
 
 ---
 
+## Roadmap
+
+- [ ] **PyPI Distribution**: Publish to PyPI to enable single-command instant execution via `uvx dockhand-mcp-py`.
+- [ ] **Automated Release Publishing**: Automated trusted publisher publishing to PyPI on GitHub release tags.
+- [ ] **Container Runtime Updates**: In-place constraint updates (CPU, memory limits, restart policies) without container recreation.
+- [ ] **Result Pagination**: Optional `limit` and `offset` pagination for large environments with hundreds of containers or images.
+
+---
+
 ## License
 
 [MIT License](LICENSE)
