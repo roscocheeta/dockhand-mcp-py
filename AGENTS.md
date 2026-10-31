@@ -39,13 +39,19 @@ gitGraph
 1. **Protected Release Branch (`master`)**:
    - Represents strictly released, production-ready software.
    - **NEVER** push directly to `master` under any circumstances.
-   - `master` is updated only via Pull Requests from `dev` once all CI/CD matrix tests pass.
+   - **`master` is NOT an echo branch**: Do NOT open or merge PRs to `master` for intermediate chores, docs, or feature branches. `master` is updated **ONLY** via a formal Release PR from `dev` when cutting a versioned release (`vX.Y.Z`).
 2. **Integration Trunk (`dev`)**:
-   - All active development, bug fixes, refactoring, and documentation originate from and target `dev`.
+   - All active development, bug fixes, refactoring, chores, and documentation originate from and target `dev`.
    - Working branches must use standard prefixes: `feat/*`, `fix/*`, `docs/*`, `chore/*`.
-3. **Squash-and-Merge Pull Requests**:
+   - Work accumulates on `dev` across multiple PRs until a release milestone is reached.
+3. **Hard Quality Gate on `dev` Pull Requests**:
+   - Every PR into `dev` must pass all CI/CD matrix tests, security audits (Gitleaks, pip-audit, Bandit SAST), and local quality gates.
+   - **NEVER merge into `dev` while checks are in-progress or failing**: You must watch checks with `gh pr checks <PR> --watch` and verify all jobs report green (`exit code 0`) before merging.
    - PRs into `dev` are squash-merged to preserve a clean, atomic linear commit history.
-4. **Mandatory Post-Release Reconcile (`ours` merge strategy)**:
+4. **Strict Release Promotion (`dev` -> `master`)**:
+   - Only when preparing a formal release (`vX.Y.Z`), open a single Release PR from `dev` to `master`.
+   - The Release PR must independently pass all CI checks before merging via a standard merge commit (`gh pr merge <PR> --merge`).
+5. **Mandatory Post-Release Reconcile (`ours` merge strategy)**:
    - When a release PR merges `dev` into `master`, Git's common-ancestor calculation breaks due to squash or merge commit diffs, leading to ghost conflicts on future release PRs.
    - **Mandatory Action**: Immediately after tagging `master`, checkout `dev` and merge `master` using the `ours` strategy:
      ```bash
