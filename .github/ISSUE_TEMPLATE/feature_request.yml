@@ -1,0 +1,38 @@
+name: Feature Request
+description: Suggest an idea, new MCP tool, or ergonomic improvement for Dockhand MCP.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas for new tools, agent ergonomics, or token optimizations!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Friction Point
+      description: Is your feature request related to a specific friction point or missing capability when managing Dockhand?
+      placeholder: "When an agent attempts to ..., it currently requires ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the tool, argument changes, or behavior you would like to see.
+      placeholder: "Add an optional parameter `compact: true` or a new tool `sync_and_deploy_git_stack` that ..."
+    validations:
+      required: true
+  - type: textarea
+    id: token-efficiency
+    attributes:
+      label: Token Economy & UX Impact
+      description: How will this affect LLM context usage, agent efficiency, or homelab workflows?
+    validations:
+      required: false
+  - type: textarea
+    id: dockhand-api
+    attributes:
+      label: Upstream Dockhand API Reference
+      description: If applicable, link to the upstream Dockhand endpoint or documentation.
+    validations:
+      required: false

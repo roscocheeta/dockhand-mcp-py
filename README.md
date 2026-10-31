@@ -186,7 +186,9 @@ uv build
 ```
 
 ### Contributing & Guidelines
-For detailed branching rules, CI/CD specifications, testing hygiene, and the release recipe, see [AGENTS.md](AGENTS.md).
+We welcome contributions! Please review:
+- [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, local development setup, and pull request standards.
+- [AGENTS.md](AGENTS.md) for deep architectural invariants, testing hygiene, and release lifecycle specifications.
 
 ---
 

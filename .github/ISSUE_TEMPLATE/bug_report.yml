@@ -1,0 +1,60 @@
+name: Bug Report
+description: Create a report to help us fix a bug or issue in the Dockhand MCP Server.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please ensure you have tested with the latest release.
+  - type: input
+    id: version
+    attributes:
+      label: Dockhand MCP Server Version
+      description: What version of dockhand-mcp are you using? (e.g., v0.5.0)
+      placeholder: v0.5.0
+    validations:
+      required: true
+  - type: input
+    id: dockhand-version
+    attributes:
+      label: Upstream Dockhand Version
+      description: What version of Dockhand is your host instance running? (e.g., v1.0.51)
+      placeholder: v1.0.51
+    validations:
+      required: false
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP Client
+      description: Which MCP client/agent are you using?
+      options:
+        - Claude Desktop
+        - Cursor
+        - Windsurf
+        - Antigravity / Gemini CLI
+        - Custom / Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can the issue be reproduced? Include MCP tool names and parameter examples.
+      placeholder: |
+        1. Call tool '...' with arguments {...}
+        2. Observe error response '...'
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Output
+      description: Please paste any relevant stderr logs or error payloads here. (Ensure sensitive tokens are redacted!)
+      render: shell
