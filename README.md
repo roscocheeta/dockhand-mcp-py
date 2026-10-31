@@ -2,7 +2,6 @@
 
 [![CI Tests](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/test.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/test.yml)
 [![Security & Audit](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/security.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/security.yml)
-[![CodeQL Analysis](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/codeql.yml/badge.svg)](https://github.com/roscocheeta/dockhand-mcp-py/actions/workflows/codeql.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/roscocheeta/dockhand-mcp-py?color=blue&logo=github)](https://github.com/roscocheeta/dockhand-mcp-py/releases)
 [![Python Versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -178,15 +177,16 @@ uv sync --extra dev
 # Run full test suite with coverage
 uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
 
-# Run security audit on dependencies
+# Run security audit on dependencies and SAST
 uv tool run pip-audit
+uv tool run bandit -r dockhand_mcp -ll
 
 # Verify package build
 uv build
 ```
 
 ### Contributing & Guidelines
-For detailed branching rules, CI/CD specifications, testing hygiene, and the release recipe, see [AGENT.md](AGENT.md).
+For detailed branching rules, CI/CD specifications, testing hygiene, and the release recipe, see [AGENTS.md](AGENTS.md).
 
 ---
 
