@@ -198,6 +198,7 @@ We welcome contributions! Please review:
 - [ ] **Automated Release Publishing**: Automated trusted publisher publishing to PyPI on GitHub release tags.
 - [ ] **Container Runtime Updates**: In-place constraint updates (CPU, memory limits, restart policies) without container recreation.
 - [ ] **Result Pagination**: Optional `limit` and `offset` pagination for large environments with hundreds of containers or images.
+- [ ] **CodeQL Security Analysis**: Review adding CodeQL checks once repo shifts to public.
 
 ---
 
