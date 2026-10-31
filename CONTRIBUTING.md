@@ -26,8 +26,9 @@ gitGraph
 ```
 
 ### Core Rules
-- **Integration Trunk (`dev`)**: All active development, bug fixes, refactoring, and documentation originate from and target `dev`. **All pull requests must target `dev`**.
-- **Protected Release Branch (`master`)**: Represents strictly released, production software. Direct pushes and direct PRs from forks into `master` are rejected.
+- **Integration Trunk (`dev`)**: All active development, bug fixes, refactoring, chores, and documentation originate from and target `dev`. **All pull requests must target `dev`**.
+- **Hard Quality Gate on `dev` PRs**: Every PR targeting `dev` must pass all CI/CD matrix checks and security audits. PRs are never merged while checks are failing or still in-progress.
+- **Protected Release Branch (`master`)**: Represents strictly released, production software. `master` is **NEVER** updated on individual PRs or intermediate chores; it is updated only during formal release cycles (`vX.Y.Z`) via a release PR from `dev`.
 - **Working Branch Prefixes**:
   - `feat/*`: New MCP tools, API endpoints, or ergonomic features
   - `fix/*`: Bug fixes or error handling corrections
@@ -142,6 +143,7 @@ When submitting a pull request to `dev`:
 - [ ] Unit tests are added or updated in `tests/` covering new behavior or bug fixes.
 - [ ] Code coverage remains above 90%.
 - [ ] All local quality gates pass (`pytest`, `pip-audit`, `bandit`, `uv build`).
+- [ ] All CI/CD checks (test matrix, Gitleaks, pip-audit, Bandit SAST) report green before merging.
 - [ ] No secrets, private IPs, or credentials are committed.
 - [ ] Documentation (`README.md` or docstrings) is updated if adding or modifying MCP tools.
 
