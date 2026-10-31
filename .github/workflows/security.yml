@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '0 4 * * 1' # Weekly on Monday at 04:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -27,8 +31,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  dependency-audit:
-    name: Dependency Audit (pip-audit)
+  audit-and-sast:
+    name: Dependency Audit (pip-audit) & SAST (Bandit)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -45,25 +49,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run pip-audit
+      - name: Run Dependency Audit (pip-audit)
         run: uv tool run pip-audit
 
-  sast:
-    name: SAST (Bandit)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Run Bandit SAST
+      - name: Run SAST Security Scan (Bandit)
         run: uv tool run bandit -r dockhand_mcp -ll

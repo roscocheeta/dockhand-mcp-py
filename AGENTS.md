@@ -140,12 +140,13 @@ When preparing and publishing a new release:
    ```bash
    uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
    uv tool run pip-audit
+   uv tool run bandit -r dockhand_mcp -ll
    uv build
    ```
 4. **Commit & Pull Request into `dev`**:
    - Commit changes: `git commit -m "chore: prepare release vX.Y.Z"`.
    - Push branch and open PR targeting `dev`: `gh pr create --base dev ...`.
-   - Wait for all CI matrix checks (Windows, macOS, Ubuntu on Python 3.11, 3.12, 3.13) to pass.
+   - Wait for all CI checks (Ubuntu, Windows, Gitleaks, pip-audit, Bandit SAST) to pass.
    - Squash-merge into `dev`.
 5. **Release Pull Request into `master`**:
    - Checkout updated `dev`: `git checkout dev && git pull origin dev`.
