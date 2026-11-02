@@ -2,6 +2,7 @@
 Git Stack management tools.
 """
 
+import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_sensitive_dict, strip_nulls
@@ -41,12 +42,23 @@ def _compact_sync_result(res: dict) -> dict:
     return compact
 
 
-async def list_git_stacks(ctx: Context = None) -> list:
-    """List all Git-backed stacks."""
+async def list_git_stacks(ctx: Context = None, search: str | None = None) -> list:
+    """List all Git-backed stacks.
+
+    Args:
+        ctx: FastMCP Context.
+        search: Optional stack name filter supporting wildcards ('*' and '?'), e.g. 'prod-*'.
+    """
+    if hasattr(ctx, "request_context") is False and isinstance(ctx, str):
+        search, ctx = ctx, None
     client = ctx.request_context.lifespan_context["dockhand"]
     stacks = await client.get("/api/git/stacks")
     if isinstance(stacks, list):
-        return [_compact_git_stack(s) for s in stacks]
+        items = [_compact_git_stack(s) for s in stacks]
+        if search:
+            search_pat = search.strip().lower()
+            return [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
+        return items
     return stacks
 
 async def get_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
@@ -56,18 +68,74 @@ async def get_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
     data = await client.get(f"/api/git/stacks/{encode_path(str(resolved_id))}")
     return redact_sensitive_dict(strip_nulls(data))
 
-async def deploy_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
-    """Deploy a Git stack by numeric ID or stack name. Uses SSE streaming."""
+async def deploy_git_stack(
+    stack_id: int | str,
+    ctx: Context = None,
+    pull: bool | None = None,
+    respect_pull_policy: bool | None = None,
+    build: bool | None = None,
+    pull_base: bool | None = None,
+    no_cache: bool | None = None,
+    force_recreate: bool | None = None,
+    *args: Any,
+) -> dict:
+    """Deploy a Git stack by numeric ID or stack name. Uses SSE streaming.
+
+    Args:
+        stack_id: Numeric ID or name of the Git stack.
+        ctx: FastMCP Context.
+        pull: Pull latest images before deployment.
+        respect_pull_policy: Respect each service's individual pull_policy defined in compose.
+        build: Build images before starting containers.
+        pull_base: Refresh Dockerfile FROM base images before building (docker compose build --pull).
+        no_cache: Do not use cache when building images (docker compose build --no-cache).
+        force_recreate: Recreate containers even if unchanged.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     resolved_id = await client.resolve_git_stack_id(stack_id)
-    return await client.post_sse(f"/api/git/stacks/{encode_path(str(resolved_id))}/deploy-stream")
+    body: dict[str, Any] = {}
+    if pull is not None:
+        body["pull"] = bool(pull)
+    if respect_pull_policy is not None:
+        body["respectPullPolicy"] = bool(respect_pull_policy)
+    if build is not None:
+        body["build"] = bool(build)
+    if pull_base is not None:
+        body["pullBase"] = bool(pull_base)
+    if no_cache is not None:
+        body["noCache"] = bool(no_cache)
+    if force_recreate is not None:
+        body["forceRecreate"] = bool(force_recreate)
 
-async def sync_git_stack(stack_id: int | str, ctx: Context = None, deploy: bool = False) -> dict:
+    return await client.post_sse(
+        f"/api/git/stacks/{encode_path(str(resolved_id))}/deploy-stream",
+        json=body if body else None,
+    )
+
+async def sync_git_stack(
+    stack_id: int | str,
+    ctx: Context = None,
+    deploy: bool = False,
+    pull: bool | None = None,
+    respect_pull_policy: bool | None = None,
+    build: bool | None = None,
+    pull_base: bool | None = None,
+    no_cache: bool | None = None,
+    force_recreate: bool | None = None,
+    *args: Any,
+) -> dict:
     """Sync a Git stack with its remote repository by numeric ID or stack name.
 
     Args:
         stack_id: Numeric ID or name of the Git stack (e.g. 33 or 'radarr').
+        ctx: FastMCP Context.
         deploy: If True, automatically deploys the stack after a successful sync.
+        pull: Pull latest images before deployment.
+        respect_pull_policy: Respect each service's individual pull_policy defined in compose.
+        build: Build images before starting containers.
+        pull_base: Refresh Dockerfile FROM base images before building.
+        no_cache: Do not use cache when building images.
+        force_recreate: Recreate containers even if unchanged.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
     resolved_id = await client.resolve_git_stack_id(stack_id)
@@ -83,16 +151,45 @@ async def sync_git_stack(stack_id: int | str, ctx: Context = None, deploy: bool 
             "deploy": {"success": False, "error": "Deployment skipped because sync failed"},
         }
 
-    deploy_res = await client.post_sse(f"/api/git/stacks/{encode_path(str(resolved_id))}/deploy-stream")
+    deploy_res = await deploy_git_stack(
+        stack_id=resolved_id,
+        ctx=ctx,
+        pull=pull,
+        respect_pull_policy=respect_pull_policy,
+        build=build,
+        pull_base=pull_base,
+        no_cache=no_cache,
+        force_recreate=force_recreate,
+    )
     return {
         "sync": compact_sync,
         "deploy": deploy_res,
     }
 
 
-async def sync_and_deploy_git_stack(stack_id: int | str, ctx: Context = None) -> dict:
+async def sync_and_deploy_git_stack(
+    stack_id: int | str,
+    ctx: Context = None,
+    pull: bool | None = None,
+    respect_pull_policy: bool | None = None,
+    build: bool | None = None,
+    pull_base: bool | None = None,
+    no_cache: bool | None = None,
+    force_recreate: bool | None = None,
+    *args: Any,
+) -> dict:
     """Atomically sync a Git stack by numeric ID or name with its remote repository and immediately deploy it."""
-    return await sync_git_stack(stack_id=stack_id, ctx=ctx, deploy=True)
+    return await sync_git_stack(
+        stack_id=stack_id,
+        ctx=ctx,
+        deploy=True,
+        pull=pull,
+        respect_pull_policy=respect_pull_policy,
+        build=build,
+        pull_base=pull_base,
+        no_cache=no_cache,
+        force_recreate=force_recreate,
+    )
 
 async def create_git_stack(
     stack_name: str,

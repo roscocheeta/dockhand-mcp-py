@@ -2,6 +2,7 @@
 Stack (Docker Compose) management tools.
 """
 
+import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict
@@ -37,15 +38,35 @@ def _normalize_stack_args(name: Any, ctx: Any, env: Any) -> tuple[str, Any, int 
     return name, ctx, env
 
 
-async def list_stacks(environment_id: int | None = None, ctx: Context = None, *args: Any) -> list:
-    """List all Docker Compose stacks in an environment."""
+async def list_stacks(
+    environment_id: int | None = None,
+    ctx: Context = None,
+    search: str | None = None,
+    *args: Any,
+) -> list:
+    """List all Docker Compose stacks in an environment.
+
+    Args:
+        environment_id: Environment ID (optional, auto-resolves to default).
+        ctx: FastMCP Context.
+        search: Optional stack name filter supporting wildcards ('*' and '?'), e.g. 'prod-*' or '*media*'.
+    """
     if environment_id is not None and not isinstance(environment_id, int):
-        ctx, environment_id = environment_id, None
+        if hasattr(environment_id, "request_context"):
+            ctx, environment_id = environment_id, None
+        elif isinstance(environment_id, str) and search is None and not environment_id.isdigit():
+            search, environment_id = environment_id, None
+        else:
+            ctx, environment_id = environment_id, None
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     stacks = await client.get("/api/stacks", params={"env": env_id})
     if isinstance(stacks, list):
-        return [_compact_stack(s) for s in stacks]
+        items = [_compact_stack(s) for s in stacks]
+        if search:
+            search_pat = search.strip().lower()
+            return [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
+        return items
     return stacks
 
 async def create_stack(
@@ -59,6 +80,9 @@ async def create_stack(
     env_vars: list[dict[str, Any]] | None = None,
     raw_env_content: str | None = None,
     secret_provider_id: int | None = None,
+    respect_pull_policy: bool | None = None,
+    pull_base: bool | None = None,
+    no_cache: bool | None = None,
     *args: Any
 ) -> dict:
     """Create a new internal Docker Compose stack from a raw YAML string.
@@ -95,6 +119,12 @@ async def create_stack(
         body["rawEnvContent"] = raw_env_content
     if secret_provider_id is not None:
         body["secretProviderId"] = secret_provider_id
+    if respect_pull_policy is not None:
+        body["respectPullPolicy"] = bool(respect_pull_policy)
+    if pull_base is not None:
+        body["pullBase"] = bool(pull_base)
+    if no_cache is not None:
+        body["noCache"] = bool(no_cache)
 
     return await client.post_sse("/api/stacks", json=body, params={"env": await client.resolve_environment_id(environment_id)})
 
@@ -125,6 +155,9 @@ async def update_stack_compose(
     pull: bool | None = None,
     build: bool | None = None,
     force_recreate: bool | None = None,
+    respect_pull_policy: bool | None = None,
+    pull_base: bool | None = None,
+    no_cache: bool | None = None,
     *args: Any
 ) -> dict:
     """Update the compose file content for a stack. Optionally redeploy after update."""
@@ -133,11 +166,17 @@ async def update_stack_compose(
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {"content": content}
     if pull is not None:
-        body["pull"] = pull
+        body["pull"] = bool(pull)
     if build is not None:
-        body["build"] = build
+        body["build"] = bool(build)
     if force_recreate is not None:
-        body["forceRecreate"] = force_recreate
+        body["forceRecreate"] = bool(force_recreate)
+    if respect_pull_policy is not None:
+        body["respectPullPolicy"] = bool(respect_pull_policy)
+    if pull_base is not None:
+        body["pullBase"] = bool(pull_base)
+    if no_cache is not None:
+        body["noCache"] = bool(no_cache)
     if restart:
         body["restart"] = True
         return await client.put_sse(
@@ -208,16 +247,38 @@ async def deploy_stack(
     pull: bool = True,
     build: bool = False,
     force_recreate: bool = False,
+    respect_pull_policy: bool = False,
+    pull_base: bool = False,
+    no_cache: bool = False,
     *args: Any
 ) -> dict:
-    """Deploy or update a stack (Docker Compose up)."""
+    """Deploy or update a stack (Docker Compose up).
+
+    Args:
+        name: Stack name.
+        ctx: FastMCP Context.
+        environment_id: Environment ID (optional, auto-resolves to default).
+        pull: Pull latest image tags before deploy (default: True).
+        build: Build images before starting containers (default: False).
+        force_recreate: Recreate containers even if configuration and image haven't changed (default: False).
+        respect_pull_policy: Respect each service's individual pull_policy defined in compose (default: False).
+        pull_base: Refresh Dockerfile FROM base images before building (docker compose build --pull, default: False).
+        no_cache: Do not use cache when building images (docker compose build --no-cache, default: False).
+    """
     name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
     client = ctx.request_context.lifespan_context["dockhand"]
-    body = {
-        "pull": pull,
-        "build": build,
-        "forceRecreate": force_recreate
+    body: dict[str, Any] = {
+        "pull": bool(pull),
+        "build": bool(build),
+        "forceRecreate": bool(force_recreate),
     }
+    if respect_pull_policy:
+        body["respectPullPolicy"] = True
+    if pull_base:
+        body["pullBase"] = True
+    if no_cache:
+        body["noCache"] = True
+
     return await client.post_sse(
         f"/api/stacks/{encode_path(name)}/deploy", 
         json=body, 

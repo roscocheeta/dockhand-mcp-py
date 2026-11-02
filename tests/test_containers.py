@@ -578,3 +578,81 @@ async def test_get_container_logs_timestamps_and_since(mock_client, mock_ctx):
         # Returned string directly, not dict
         assert isinstance(logs, str)
         assert "line1" in logs
+@pytest.mark.asyncio
+async def test_list_containers_wildcard_search(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import list_containers
+
+    containers_payload = [
+        {"id": "c111222333444", "Names": ["/prod-plex"], "Image": "plex:latest", "State": "running", "Status": "Up 2 days"},
+        {"id": "c222333444555", "Names": ["/prod-radarr"], "Image": "radarr:latest", "State": "running", "Status": "Up 3 days"},
+        {"id": "c333444555666", "Names": ["/dev-redis"], "Image": "redis:alpine", "State": "exited", "Status": "Exited (0)"},
+    ]
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/containers?env=1").mock(
+            return_value=Response(200, json=containers_payload)
+        )
+
+        all_c = await list_containers(environment_id=1, ctx=mock_ctx)
+        assert len(all_c) == 3
+
+        # Wildcard match on container name
+        prod_c = await list_containers(environment_id=1, ctx=mock_ctx, search="prod-*")
+        assert len(prod_c) == 2
+        assert [c["Name"] for c in prod_c] == ["/prod-plex", "/prod-radarr"]
+
+        # Wildcard match with ?
+        redis_c = await list_containers(environment_id=1, ctx=mock_ctx, search="*redi?")
+        assert len(redis_c) == 1
+        assert redis_c[0]["Name"] == "/dev-redis"
+
+
+@pytest.mark.asyncio
+async def test_get_pending_container_updates_release_notes_and_compact(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import get_pending_container_updates
+
+    huge_notes = "Bug fix release notes: " + ("x" * 5000)
+    updates_payload = {
+        "updates": [
+            {
+                "containerId": "c1",
+                "containerName": "plex",
+                "coolingDown": True,
+                "currentVersion": "1.0.0",
+                "newVersion": "1.1.0",
+                "releaseNotes": huge_notes,
+            },
+            {
+                "containerId": "c2",
+                "containerName": "nginx",
+                "coolingDown": False,
+                "currentVersion": "1.20",
+                "newVersion": "1.21",
+                "releaseNotes": "Small patch release",
+            },
+        ]
+    }
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/containers/pending-updates?env=1").mock(
+            return_value=Response(200, json=updates_payload)
+        )
+
+        # 1. Default: release notes truncated to 2048 bytes
+        res_default = await get_pending_container_updates(environment_id=1, ctx=mock_ctx)
+        c1 = res_default["updates"][0]
+        assert c1["releaseNotesTruncated"] is True
+        assert len(c1["releaseNotes"]) <= 2100
+        assert "[TRUNCATED AT 2048 BYTES]" in c1["releaseNotes"]
+        assert res_default["updates"][1]["releaseNotes"] == "Small patch release"
+
+        # 2. Compact mode: release notes completely omitted to save tokens
+        res_compact = await get_pending_container_updates(environment_id=1, ctx=mock_ctx, compact=True)
+        assert "releaseNotes" not in res_compact["updates"][0]
+        assert "releaseNotes" not in res_compact["updates"][1]
+        assert res_compact["updates"][0]["containerName"] == "plex"
+        assert res_compact["updates"][0]["coolingDown"] is True
+
+        # 3. include_release_notes=False
+        res_no_notes = await get_pending_container_updates(environment_id=1, ctx=mock_ctx, include_release_notes=False)
+        assert "releaseNotes" not in res_no_notes["updates"][0]

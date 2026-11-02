@@ -2,6 +2,7 @@
 Container management tools (Read-only for Phase 2b).
 """
 
+import fnmatch
 import json
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
@@ -34,6 +35,7 @@ async def list_containers(
     environment_id: int | None = None,
     ctx: Context = None,
     status: str | None = None,
+    search: str | None = None,
 ) -> list:
     """List all containers in a Dockhand environment.
 
@@ -41,6 +43,7 @@ async def list_containers(
         environment_id: Environment ID (optional, auto-resolves to default).
         ctx: FastMCP Context.
         status: Optional state filter (e.g. 'running', 'exited').
+        search: Optional container name, display name, or ID filter supporting wildcards ('*' and '?'), e.g. 'web-*' or '*redis*'.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
@@ -49,7 +52,15 @@ async def list_containers(
         items = [_compact_container(c) for c in containers]
         if status:
             s_clean = status.strip().lower()
-            return [c for c in items if (c.get("State") or "").lower() == s_clean]
+            items = [c for c in items if (c.get("State") or "").lower() == s_clean]
+        if search:
+            search_pat = search.strip().lower()
+            items = [
+                c for c in items
+                if fnmatch.fnmatchcase((c.get("Name") or "").lower().lstrip("/"), search_pat)
+                or fnmatch.fnmatchcase((c.get("DisplayName") or "").lower(), search_pat)
+                or fnmatch.fnmatchcase((c.get("Id") or "").lower(), search_pat)
+            ]
         return items
     return containers
 
@@ -592,14 +603,56 @@ async def check_container_updates(environment_id: int | None = None, ctx: Contex
         params={"env": await client.resolve_environment_id(environment_id)},
     )
 
-async def get_pending_container_updates(environment_id: int | None = None, ctx: Context = None) -> dict:
-    """List the containers in an environment that have a pending image update, newer version, cooldown, or moved pinned digest."""
+async def get_pending_container_updates(
+    environment_id: int | None = None,
+    ctx: Context = None,
+    compact: bool = False,
+    include_release_notes: bool = True,
+    max_release_notes_bytes: int = 2048,
+) -> dict:
+    """List the containers in an environment that have a pending image update, newer version, cooldown, or moved pinned digest.
+
+    Note: In Dockhand v1.0.56+, release notes for held container updates are accessible during cooldown periods.
+
+    Args:
+        environment_id: Environment ID (optional, auto-resolves to default).
+        ctx: FastMCP Context.
+        compact: If True, strips verbose release notes and changelogs to minimize token consumption.
+        include_release_notes: If False, omits release notes entirely (default: True).
+        max_release_notes_bytes: Maximum bytes per release note before truncation (default: 2048).
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
-    return await client.get(
+    data = await client.get(
         "/api/containers/pending-updates",
         params={"env": env_id},
     )
+
+    def _sanitize_update_item(item: Any) -> Any:
+        if not isinstance(item, dict):
+            return item
+        res = dict(item)
+        for note_field in ("releaseNotes", "release_notes", "changelog", "notes"):
+            if note_field in res:
+                if compact or not include_release_notes:
+                    del res[note_field]
+                elif isinstance(res[note_field], str) and max_release_notes_bytes > 0:
+                    val = res[note_field]
+                    if len(val) > max_release_notes_bytes:
+                        res[note_field] = val[:max_release_notes_bytes] + f"\n... [TRUNCATED AT {max_release_notes_bytes} BYTES]"
+                        res[f"{note_field}Truncated"] = True
+        return res
+
+    if isinstance(data, dict):
+        data = dict(data)
+        for key, val in list(data.items()):
+            if isinstance(val, list):
+                data[key] = [_sanitize_update_item(it) for it in val]
+            elif isinstance(val, dict):
+                data[key] = _sanitize_update_item(val)
+    elif isinstance(data, list):
+        data = [_sanitize_update_item(it) for it in data]
+    return data
 
 async def get_container_scheduled_actions(
     container_name: str = "",
