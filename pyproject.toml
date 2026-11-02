@@ -1,6 +1,6 @@
 [project]
 name = "dockhand-mcp-py"
-version = "0.5.0"
+version = "0.6.0"
 description = "Python MCP Server for Dockhand Docker Management API"
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,8 +18,8 @@ dockhand-mcp = "dockhand_mcp.server:main"
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "respx>=0.22",
-    "pytest-cov>=4.1.0",
+    "pytest-cov>=5.0",
+    "respx>=0.21.0",
 ]
 
 [build-system]
@@ -32,4 +32,3 @@ packages = ["dockhand_mcp"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
