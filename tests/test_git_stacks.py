@@ -337,3 +337,75 @@ async def test_sync_git_stack_deploy_skipped_on_sync_failure(mock_client):
         assert res["sync"]["success"] is False
         assert res["deploy"]["success"] is False
         assert "skipped" in res["deploy"]["error"]
+@pytest.mark.asyncio
+async def test_list_git_stacks_wildcard_search(mock_client):
+    from dockhand_mcp.tools.git_stacks import list_git_stacks
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/git/stacks").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {"id": 1, "stackName": "prod-monitoring", "syncStatus": "synced"},
+                    {"id": 2, "stackName": "prod-logging", "syncStatus": "synced"},
+                    {"id": 3, "stackName": "dev-sandbox", "syncStatus": "pending"},
+                ],
+            )
+        )
+
+        all_stacks = await list_git_stacks(ctx=mock_ctx)
+        assert len(all_stacks) == 3
+
+        prod_stacks = await list_git_stacks(ctx=mock_ctx, search="prod-*")
+        assert len(prod_stacks) == 2
+        assert [s["Name"] for s in prod_stacks] == ["prod-monitoring", "prod-logging"]
+
+
+@pytest.mark.asyncio
+async def test_deploy_git_stack_redeploy_flags(mock_client):
+    import json
+    from dockhand_mcp.tools.git_stacks import deploy_git_stack, sync_git_stack
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        deploy_route = respx.post("http://dockhand.test/api/git/stacks/10/deploy-stream").mock(
+            return_value=Response(200, text='data: {"success": true}\n', headers={"Content-Type": "text/event-stream"})
+        )
+        sync_route = respx.post("http://dockhand.test/api/git/stacks/10/sync").mock(
+            return_value=Response(200, json={"success": True, "commit": "123456"})
+        )
+
+        await deploy_git_stack(
+            stack_id=10,
+            ctx=mock_ctx,
+            pull=False,
+            respect_pull_policy=True,
+            build=True,
+            pull_base=True,
+            no_cache=True,
+            force_recreate=True,
+        )
+        assert deploy_route.called
+        req_body = json.loads(deploy_route.calls.last.request.content)
+        assert req_body["pull"] is False
+        assert req_body["respectPullPolicy"] is True
+        assert req_body["build"] is True
+        assert req_body["pullBase"] is True
+        assert req_body["noCache"] is True
+        assert req_body["forceRecreate"] is True
+
+        # Also verify sync_git_stack forwards the flags when deploy=True
+        await sync_git_stack(
+            stack_id=10,
+            ctx=mock_ctx,
+            deploy=True,
+            respect_pull_policy=True,
+            pull_base=True,
+            no_cache=True,
+        )
+        assert sync_route.called
+        sync_deploy_body = json.loads(deploy_route.calls.last.request.content)
+        assert sync_deploy_body["respectPullPolicy"] is True
+        assert sync_deploy_body["pullBase"] is True
+        assert sync_deploy_body["noCache"] is True
