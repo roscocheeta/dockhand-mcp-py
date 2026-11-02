@@ -116,7 +116,7 @@ class TestSecurityEdgeCases:
 
         # Slack Webhooks
         assert (
-            redact_url_credentials("https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX")
+            redact_url_credentials("https://hooks.slack.com/services/T00000000/B00000000/mock_webhook_token_example")
             == "https://hooks.slack.com/services/T00000000/B00000000/***REDACTED***"
         )
 

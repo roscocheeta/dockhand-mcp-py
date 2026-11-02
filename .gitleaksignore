@@ -1,0 +1,8 @@
+# Test fixture mock secrets in historical commits
+048bd193eb4c0d7e322a9fa22fc27fdac2059e03:tests/test_utils.py:generic-api-key:176
+048bd193eb4c0d7e322a9fa22fc27fdac2059e03:tests/test_utils.py:generic-api-key:177
+19d6761ddfdf8a0ea1b3ce5a1d28a92e19b1fbeb:tests/test_auth_providers.py:generic-api-key:23
+d4878364ebeb05f08a0e234c0752842a8d3bbef0:tests/test_security_edge_cases.py:slack-webhook-url:119
+aade3332c693e2ffe2bc6722d296c78aea3b5896:tests/test_utils.py:generic-api-key:176
+aade3332c693e2ffe2bc6722d296c78aea3b5896:tests/test_utils.py:generic-api-key:177
+6a87c7bde32300391f34b5d1f62d89520bae25a6:tests/test_security_edge_cases.py:slack-webhook-url:119

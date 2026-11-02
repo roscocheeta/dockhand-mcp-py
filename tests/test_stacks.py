@@ -372,8 +372,97 @@ async def test_stack_compose_env_and_lifecycle_operations(mock_client, mock_ctx)
         assert (await adopt_stack(1, "web", mock_ctx))["adopted"] is True
         assert (await relocate_stack(1, "web", "/new/path", mock_ctx))["relocated"] is True
         assert (await get_stack_deploy_history(1, "web", mock_ctx))[0]["id"] == 1
+@pytest.mark.asyncio
+async def test_stacks_wildcard_search(mock_client, mock_ctx):
+    with respx.mock:
+        respx.get("http://dockhand.test/api/stacks?env=1").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {"id": "s1", "name": "prod-web", "status": "running"},
+                    {"id": "s2", "name": "prod-db", "status": "running"},
+                    {"id": "s3", "name": "dev-api", "status": "stopped"},
+                    {"id": "s4", "name": "media-arr", "status": "running"},
+                ],
+            )
+        )
+
+        all_stacks = await list_stacks(environment_id=1, ctx=mock_ctx)
+        assert len(all_stacks) == 4
+
+        prod_stacks = await list_stacks(environment_id=1, ctx=mock_ctx, search="prod-*")
+        assert len(prod_stacks) == 2
+        assert [s["Name"] for s in prod_stacks] == ["prod-web", "prod-db"]
+
+        media_stacks = await list_stacks(environment_id=1, ctx=mock_ctx, search="*arr*")
+        assert len(media_stacks) == 1
+        assert media_stacks[0]["Name"] == "media-arr"
 
 
+@pytest.mark.asyncio
+async def test_stack_deploy_pull_policy_and_build_flags(mock_client, mock_ctx):
+    import json
+    sse_ok = Response(
+        200,
+        text='data: {"output": "deploying"}\n\ndata: {"success": true}\n',
+        headers={"Content-Type": "text/event-stream"},
+    )
+    with respx.mock:
+        deploy_route = respx.post("http://dockhand.test/api/stacks/my-stack/deploy?env=1").mock(return_value=sse_ok)
+        compose_route = respx.put("http://dockhand.test/api/stacks/my-stack/compose?env=1").mock(return_value=sse_ok)
+        create_route = respx.post("http://dockhand.test/api/stacks?env=1").mock(return_value=sse_ok)
 
+        # 1. deploy_stack with v1.0.56 redeploy flags
+        await deploy_stack(
+            name="my-stack",
+            ctx=mock_ctx,
+            environment_id=1,
+            pull=False,
+            respect_pull_policy=True,
+            build=True,
+            pull_base=True,
+            no_cache=True,
+            force_recreate=True,
+        )
+        assert deploy_route.called
+        deploy_body = json.loads(deploy_route.calls.last.request.content)
+        assert deploy_body["pull"] is False
+        assert deploy_body["respectPullPolicy"] is True
+        assert deploy_body["build"] is True
+        assert deploy_body["pullBase"] is True
+        assert deploy_body["noCache"] is True
+        assert deploy_body["forceRecreate"] is True
 
+        # 2. update_stack_compose with redeploy flags
+        await update_stack_compose(
+            name="my-stack",
+            content="services: {web: {image: nginx}}",
+            ctx=mock_ctx,
+            environment_id=1,
+            restart=True,
+            respect_pull_policy=True,
+            pull_base=True,
+            no_cache=True,
+        )
+        assert compose_route.called
+        compose_body = json.loads(compose_route.calls.last.request.content)
+        assert compose_body["restart"] is True
+        assert compose_body["respectPullPolicy"] is True
+        assert compose_body["pullBase"] is True
+        assert compose_body["noCache"] is True
 
+        # 3. create_stack with flags
+        await create_stack(
+            name="new-stack",
+            compose="services: {}",
+            ctx=mock_ctx,
+            environment_id=1,
+            respect_pull_policy=True,
+            pull_base=True,
+            no_cache=True,
+        )
+        assert create_route.called
+        create_body = json.loads(create_route.calls.last.request.content)
+        assert create_body["respectPullPolicy"] is True
+        assert create_body["pullBase"] is True
+        assert create_body["noCache"] is True

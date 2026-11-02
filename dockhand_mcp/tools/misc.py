@@ -2,6 +2,7 @@
 Miscellaneous and Tier 3 Dockhand tools.
 """
 
+import re
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import encode_path, redact_sensitive_dict
@@ -284,8 +285,35 @@ async def get_language_preference(ctx: Context = None) -> dict:
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/preferences/language")
 
-async def set_language_preference(ctx: Context = None, language: str | None = None) -> dict:
-    """Set the interface language preference on the server (locale code, or None to follow the browser)."""
+VALID_LOCALE_RE = re.compile(r"^[a-zA-Z]{2}(?:-[a-zA-Z0-9]{2,4})?$")
+
+async def set_language_preference(ctx: Context = None, language: str | None = None, *args: Any) -> dict:
+    """Set the interface language preference on the server (locale code, or None to follow browser).
+
+    Supported locales include:
+      - 'en' (English), 'de' (German), 'es' (Spanish), 'ru' (Russian),
+      - 'fr-FR' (French), 'fr-CA' (French - Canada), 'it' (Italian),
+      - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pt-BR' (Portuguese - Brazil),
+      - 'pl' (Polish), 'ja' (Japanese), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
+
+    Args:
+        ctx: FastMCP Context.
+        language: Locale code (e.g. 'es', 'ru', 'en', 'fr-FR') or None to follow browser.
+    """
+    if isinstance(ctx, str) or (ctx is not None and not hasattr(ctx, "request_context")):
+        language, ctx = ctx, language
+    elif hasattr(language, "request_context"):
+        ctx, language = language, (args[0] if args else None)
+
+    if language is not None:
+        clean_lang = language.strip()
+        if not VALID_LOCALE_RE.match(clean_lang):
+            raise ValueError(
+                f"Invalid language locale code: '{language}'. "
+                "Expected format like 'en', 'es', 'ru', or 'fr-FR'."
+            )
+        language = clean_lang
+
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.put("/api/preferences/language", json={"language": language})
 

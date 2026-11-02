@@ -437,6 +437,28 @@ async def test_language_preference(mock_client):
         reset = await set_language_preference(mock_ctx, language=None)
         assert reset["language"] is None
 
+        # Test v1.0.56 Spanish ('es') and Russian ('ru') preferences
+        es_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "es"})
+        )
+        res_es = await set_language_preference("es", mock_ctx)
+        assert es_route.called
+        assert res_es["language"] == "es"
+
+        ru_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "ru"})
+        )
+        res_ru = await set_language_preference(mock_ctx, language="ru")
+        assert ru_route.called
+        assert res_ru["language"] == "ru"
+
+        # Security validation: Invalid locale strings rejected
+        with pytest.raises(ValueError, match="Invalid language locale code"):
+            await set_language_preference("invalid/path/injection", mock_ctx)
+
+        with pytest.raises(ValueError, match="Invalid language locale code"):
+            await set_language_preference("es; rm -rf /", mock_ctx)
+
 
 @pytest.mark.asyncio
 async def test_pinned_digest_report(mock_client):

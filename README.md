@@ -121,19 +121,19 @@ In your extension's MCP settings configuration (`mcp_settings.json`):
 ## Available Tools (74+ Tools)
 
 ### Containers & Scheduled Actions
-- **Inspection & State**: `list_containers` (supports `status="running"` filter), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
+- **Inspection & State**: `list_containers` (supports `status="running"` and `search="*pattern*"` wildcard filters), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
 - **Logs & Execution**: `get_container_logs` (supports `tail`, `timestamps=True`, `since="1h"`), `run_container_exec` (accepts shell strings or argument arrays), `exec_container`.
 - **File System Operations**: `list_container_files`, `get_container_file_content` (with truncation), `write_container_file_content`, `upload_container_file` (base64 encoded), `create_container_path`, `chown_container_file`, `delete_container_file`, `rename_container_file`.
-- **Lifecycle & Updates**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `create_container`, `update_container`, `rename_container`, `delete_container`, `check_container_updates`, `get_pending_container_updates`.
+- **Lifecycle & Updates**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `create_container`, `update_container`, `rename_container`, `delete_container`, `check_container_updates`, `get_pending_container_updates` (supports `compact=True` token optimization; held update release notes surfaced during cooldown).
 - **Scheduled Actions**: `get_container_scheduled_actions`, `set_container_scheduled_actions` (daily start/stop or cron).
 
 ### Stacks (Docker Compose)
-- **Deployment & Lifecycle**: `list_stacks`, `create_stack`, `deploy_stack`, `start_stack`, `stop_stack`, `restart_stack` (supports `mode="restart"|"ordered"|"recreate"`), `down_stack`, `delete_stack`, `adopt_stack`, `relocate_stack`.
+- **Deployment & Lifecycle**: `list_stacks` (supports `search="*pattern*"` wildcard filter), `create_stack`, `deploy_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `start_stack`, `stop_stack`, `restart_stack` (supports `mode="restart"|"ordered"|"recreate"`), `down_stack`, `delete_stack`, `adopt_stack`, `relocate_stack`.
 - **Compose & Metrics**: `get_stack_compose`, `update_stack_compose` (supports `pull`, `build`, `force_recreate`), `get_stack_stats`, `get_stack_path_hints`, `get_stack_deploy_history`, `get_stack_deploy_log`.
 - **Environment Management**: `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`, `get_stack_delete_preview`.
 
 ### Git Stacks & GitOps
-- **Git Stacks**: `list_git_stacks`, `get_git_stack`, `deploy_git_stack`, `sync_git_stack` (with `deploy=True`), `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`. *All stack tools accept human names (e.g. `"radarr"`).*
+- **Git Stacks**: `list_git_stacks` (supports `search="*pattern*"`), `get_git_stack`, `deploy_git_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `sync_git_stack` (with `deploy=True`), `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`. *All stack tools accept human names (e.g. `"radarr"`).*
 - **Git Repositories & Credentials**: `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`, `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`.
 
 ### Environments & System
@@ -149,7 +149,7 @@ In your extension's MCP settings configuration (`mcp_settings.json`):
 - **Security & Scans**: `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image` (Grype or Trivy).
 - **Users, Tokens & Passkeys**: `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `list_tokens`, `create_token`, `delete_token`, `list_passkeys`, `delete_passkey`, `list_oidc_providers`, `list_ldap_providers`, `test_oidc_provider`, `test_ldap_provider`.
 - **Registries & Secret Providers**: `list_registries`, `get_registry`, `create_registry`, `update_registry`, `delete_registry`, `test_registry`, `list_secret_providers`, `get_secret_provider`, `create_secret_provider`, `update_secret_provider`, `delete_secret_provider` (Psono, SOPS age key).
-- **Batch & Preferences**: `execute_batch_operation`, `get_minimum_release_age`, `set_minimum_release_age`, `get_pinned_digest_report`, `set_pinned_digest_report`, `get_language_preference`, `set_language_preference`, `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`, `list_tags`, `create_tag`, `update_tag`, `delete_tag`, `get_stack_tags`, `set_stack_tags`.
+- **Batch & Preferences**: `execute_batch_operation`, `get_minimum_release_age`, `set_minimum_release_age`, `get_pinned_digest_report`, `set_pinned_digest_report`, `get_language_preference`, `set_language_preference` (supports Spanish `es`, Russian `ru`, English `en`, French `fr-FR`, etc.), `get_preferences`, `set_preferences`, `get_theme_settings`, `update_theme_settings`, `get_sidebar_preferences`, `set_grid_preferences`, `get_environment_order`, `set_environment_order`, `reset_environment_order`, `get_tag_order`, `set_tag_order`, `reset_tag_order`, `list_tags`, `create_tag`, `update_tag`, `delete_tag`, `get_stack_tags`, `set_stack_tags`.
 
 ---
 
@@ -198,6 +198,7 @@ We welcome contributions! Please review:
 - [ ] **Automated Release Publishing**: Automated trusted publisher publishing to PyPI on GitHub release tags.
 - [ ] **Container Runtime Updates**: In-place constraint updates (CPU, memory limits, restart policies) without container recreation.
 - [ ] **Result Pagination**: Optional `limit` and `offset` pagination for large environments with hundreds of containers or images.
+- [ ] **CodeQL Security Analysis**: Review adding CodeQL checks once repo shifts to public.
 
 ---
 
