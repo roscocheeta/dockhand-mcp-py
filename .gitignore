@@ -25,6 +25,5 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
-.agents/status.md
 scratch
 scratch/*

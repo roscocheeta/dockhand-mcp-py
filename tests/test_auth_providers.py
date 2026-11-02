@@ -20,10 +20,10 @@ async def test_list_oidc_providers(mock_client, mock_ctx):
     from dockhand_mcp.tools.auth_providers import list_oidc_providers, list_ldap_providers
     with respx.mock:
         route = respx.get("http://dockhand.test/api/auth/oidc/providers").mock(
-            return_value=Response(200, json=[{"id": 1, "name": "Google", "clientSecret": "oidc_secret_123"}])
+            return_value=Response(200, json=[{"id": 1, "name": "Google", "clientSecret": "mock_oidc_client_secret"}])
         )
         ldap_route = respx.get("http://dockhand.test/api/auth/ldap/providers").mock(
-            return_value=Response(200, json=[{"id": 2, "name": "Corp LDAP", "bindPassword": "ldap_bind_password"}])
+            return_value=Response(200, json=[{"id": 2, "name": "Corp LDAP", "bindPassword": "mock_ldap_bind_password"}])
         )
         result = await list_oidc_providers(mock_ctx)
         assert route.called
