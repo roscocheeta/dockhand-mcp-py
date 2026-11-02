@@ -1,0 +1,5 @@
+[allowlist]
+description = "Allow test fixtures and mock secrets in test files"
+paths = [
+    '''tests/.*''',
+]

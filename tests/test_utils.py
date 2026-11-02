@@ -174,8 +174,8 @@ class TestUtils:
                 "serverUrl": "https://vault.example.com",
                 "secretKey": "vault_key_abc",
                 "webhookUrl": "https://discord.com/api/webhooks/999/secret_hook_token",
-                "ageKey": "AGE-SECRET-KEY-1PQ...",
-                "age_key": "AGE-SECRET-KEY-2PQ...",
+                "ageKey": "mock_age_key_val_1",
+                "age_key": "mock_age_key_val_2",
             },
             "envVars": [
                 {"key": "DB_HOST", "value": "localhost", "isSecret": False},
