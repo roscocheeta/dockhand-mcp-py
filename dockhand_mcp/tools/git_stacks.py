@@ -278,6 +278,26 @@ async def delete_git_stack(stack_id: int | str, ctx: Context = None, force: bool
     if force: params["force"] = "true"
     return await client.delete(f"/api/git/stacks/{encode_path(str(resolved_id))}", params=params)
 
+
+async def convert_git_stack_to_local(
+    stack_id: int | str,
+    ctx: Context = None,
+    *args: Any,
+) -> dict:
+    """Convert a Git-managed Docker Compose stack back to local management without recreating it.
+
+    Detaches Git management while keeping containers and configurations running in place.
+    Note: The Git stack must have been deployed at least once so its compose file is present on disk.
+
+    Args:
+        stack_id: Numeric ID or name of the Git stack (e.g. 12 or 'my-app').
+        ctx: FastMCP Context.
+    """
+    client = ctx.request_context.lifespan_context["dockhand"]
+    resolved_id = await client.resolve_git_stack_id(stack_id)
+    res = await client.post(f"/api/git/stacks/{encode_path(str(resolved_id))}/detach")
+    return redact_sensitive_dict(strip_nulls(res))
+
 def register_git_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_git_stacks)
     mcp.add_tool(get_git_stack)
@@ -287,3 +307,4 @@ def register_git_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(create_git_stack)
     mcp.add_tool(update_git_stack)
     mcp.add_tool(delete_git_stack)
+    mcp.add_tool(convert_git_stack_to_local)

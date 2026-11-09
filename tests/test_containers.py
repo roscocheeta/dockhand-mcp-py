@@ -656,3 +656,37 @@ async def test_get_pending_container_updates_release_notes_and_compact(mock_clie
         # 3. include_release_notes=False
         res_no_notes = await get_pending_container_updates(environment_id=1, ctx=mock_ctx, include_release_notes=False)
         assert "releaseNotes" not in res_no_notes["updates"][0]
+@pytest.mark.asyncio
+async def test_container_files_with_special_characters(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import get_container_file_content, write_container_file_content, delete_container_file
+
+    with respx.mock:
+        # File with curly braces and equals sign like config{v1}=prod.conf
+        content_route = respx.get(
+            respx.patterns.M("http://dockhand.test/api/containers/c1/files/content")
+        ).mock(
+            return_value=Response(200, text="config_content=123", headers={"Content-Type": "text/plain"})
+        )
+        write_route = respx.put(
+            respx.patterns.M("http://dockhand.test/api/containers/c1/files/content")
+        ).mock(
+            return_value=Response(200, json={"success": True})
+        )
+        delete_route = respx.delete(
+            respx.patterns.M("http://dockhand.test/api/containers/c1/files")
+        ).mock(
+            return_value=Response(200, json={"success": True})
+        )
+
+        file_path = "/etc/app/config{v1}=prod.conf"
+        content = await get_container_file_content(1, "c1", file_path, mock_ctx)
+        assert content_route.called
+        assert content == "config_content=123"
+
+        res_write = await write_container_file_content(1, "c1", file_path, "new_content=456", mock_ctx)
+        assert write_route.called
+        assert res_write["success"] is True
+
+        res_delete = await delete_container_file(1, "c1", file_path, mock_ctx)
+        assert delete_route.called
+        assert res_delete["success"] is True

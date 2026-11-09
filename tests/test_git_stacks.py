@@ -409,3 +409,29 @@ async def test_deploy_git_stack_redeploy_flags(mock_client):
         assert sync_deploy_body["respectPullPolicy"] is True
         assert sync_deploy_body["pullBase"] is True
         assert sync_deploy_body["noCache"] is True
+@pytest.mark.asyncio
+async def test_convert_git_stack_to_local(mock_client):
+    from dockhand_mcp.tools.git_stacks import convert_git_stack_to_local
+    mock_ctx = MockContext(mock_client)
+
+    with respx.mock:
+        # Mock numeric ID
+        detach_route = respx.post("http://dockhand.test/api/git/stacks/42/detach").mock(
+            return_value=Response(200, json={"success": True, "sourceType": "internal"})
+        )
+        res_id = await convert_git_stack_to_local(42, mock_ctx)
+        assert detach_route.called
+        assert res_id["success"] is True
+
+        # Mock resolve by stack name
+        respx.get("http://dockhand.test/api/git/stacks").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {"id": 42, "stackName": "radarr", "syncStatus": "synced"},
+                    {"id": 43, "stackName": "sonarr", "syncStatus": "synced"},
+                ],
+            )
+        )
+        res_name = await convert_git_stack_to_local("radarr", mock_ctx)
+        assert res_name["success"] is True
