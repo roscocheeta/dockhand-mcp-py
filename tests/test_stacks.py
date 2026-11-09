@@ -466,3 +466,71 @@ async def test_stack_deploy_pull_policy_and_build_flags(mock_client, mock_ctx):
         assert create_body["respectPullPolicy"] is True
         assert create_body["pullBase"] is True
         assert create_body["noCache"] is True
+@pytest.mark.asyncio
+async def test_convert_stack_to_git(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.stacks import convert_stack_to_git
+
+    with respx.mock:
+        # 1. deploy_now=False (standard POST returning JSON)
+        attach_route = respx.post("http://dockhand.test/api/stacks/my-local-stack/attach?env=1").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 99,
+                    "stackName": "my-local-stack",
+                    "sourceType": "git",
+                    "webhookSecret": "top_secret_wh_token",
+                    "envVars": [{"key": "DB_PASS", "value": "secret_db_pass", "isSecret": True}],
+                },
+            )
+        )
+
+        res = await convert_stack_to_git(
+            name="my-local-stack",
+            ctx=mock_ctx,
+            environment_id=1,
+            url="https://github.com/myorg/myrepo.git",
+            branch="staging",
+            compose_path="docker/compose.yml",
+            env_file_path=".env.production",
+            webhook_enabled=True,
+            webhook_secret="wh_secret_xyz",
+            deploy_now=False,
+        )
+
+        assert attach_route.called
+        req_body = json.loads(attach_route.calls.last.request.content)
+        assert req_body["url"] == "https://github.com/myorg/myrepo.git"
+        assert req_body["branch"] == "staging"
+        assert req_body["composePath"] == "docker/compose.yml"
+        assert req_body["envFilePath"] == ".env.production"
+        assert req_body["webhookEnabled"] is True
+        assert req_body["webhookSecret"] == "wh_secret_xyz"
+        assert req_body["deployNow"] is False
+
+        # Verify sensitive response redaction
+        assert res["webhookSecret"] == "***REDACTED***"
+        assert res["envVars"][0]["value"] == "***REDACTED***"
+
+        # 2. deploy_now=True (SSE response stream)
+        sse_attach_route = respx.post("http://dockhand.test/api/stacks/my-local-stack/attach?env=1").mock(
+            return_value=Response(
+                200,
+                text='data: {"progress": "deploying"}\n\ndata: {"result": {"id": 99, "deployed": true}}\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+
+        res_sse = await convert_stack_to_git(
+            name="my-local-stack",
+            ctx=mock_ctx,
+            environment_id=1,
+            repository_id=5,
+            branch="main",
+            deploy_now=True,
+        )
+        assert sse_attach_route.called
+        req_body_sse = json.loads(sse_attach_route.calls.last.request.content)
+        assert req_body_sse["repositoryId"] == 5
+        assert req_body_sse["deployNow"] is True

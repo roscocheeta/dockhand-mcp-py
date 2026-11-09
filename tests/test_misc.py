@@ -452,6 +452,21 @@ async def test_language_preference(mock_client):
         assert ru_route.called
         assert res_ru["language"] == "ru"
 
+        # Test v1.0.57 Ukrainian ('uk') and Turkish ('tr') preferences
+        uk_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "uk"})
+        )
+        res_uk = await set_language_preference("uk", mock_ctx)
+        assert uk_route.called
+        assert res_uk["language"] == "uk"
+
+        tr_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "tr"})
+        )
+        res_tr = await set_language_preference("tr", mock_ctx)
+        assert tr_route.called
+        assert res_tr["language"] == "tr"
+
         # Security validation: Invalid locale strings rejected
         with pytest.raises(ValueError, match="Invalid language locale code"):
             await set_language_preference("invalid/path/injection", mock_ctx)

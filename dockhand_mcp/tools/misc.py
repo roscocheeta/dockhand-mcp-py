@@ -292,9 +292,10 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
 
     Supported locales include:
       - 'en' (English), 'de' (German), 'es' (Spanish), 'ru' (Russian),
+      - 'uk' (Ukrainian), 'tr' (Turkish), 'pt-BR' (Portuguese - Brazil),
       - 'fr-FR' (French), 'fr-CA' (French - Canada), 'it' (Italian),
-      - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pt-BR' (Portuguese - Brazil),
-      - 'pl' (Polish), 'ja' (Japanese), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
+      - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pl' (Polish),
+      - 'ja' (Japanese), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
 
     Args:
         ctx: FastMCP Context.
