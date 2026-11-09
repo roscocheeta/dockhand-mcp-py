@@ -520,6 +520,114 @@ async def get_stack_path_hints(name: str, ctx: Context = None, environment_id: i
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get("/api/stacks/path-hints", params={"name": name, "env": await client.resolve_environment_id(environment_id)})
 
+
+async def convert_stack_to_git(
+    name: str,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    repository_id: int | None = None,
+    url: str | None = None,
+    repo_name: str | None = None,
+    branch: str = "main",
+    credential_id: int | None = None,
+    compose_path: str = "compose.yaml",
+    env_file_path: str | None = None,
+    auto_update: bool = False,
+    auto_update_schedule: str = "daily",
+    auto_update_cron: str = "0 3 * * *",
+    webhook_enabled: bool = False,
+    webhook_secret: str | None = None,
+    context_dir: str | None = None,
+    build_on_deploy: bool = False,
+    no_build_cache: bool = False,
+    repull_images: bool = False,
+    force_redeploy: bool = False,
+    deploy_now: bool = False,
+    secret_provider_id: int | None = None,
+    env_vars: list[dict[str, Any]] | None = None,
+    *args: Any,
+) -> dict:
+    """Convert an internal/local Docker Compose stack to Git management without recreating it.
+
+    Allows transitioning an existing local stack to track a remote Git repository.
+    The stack's running containers and existing environment variables are preserved.
+
+    ⚠️ SECURITY WARNING: Passing webhook_secret or secret env_vars exposes them in plain text within your chat history.
+
+    Args:
+        name: Name of the existing local stack to convert.
+        ctx: FastMCP Context.
+        environment_id: Environment ID (optional; defaults to active environment).
+        repository_id: Optional ID of an already registered Git repository.
+        url: Git repository URL (required if repository_id is not specified).
+        repo_name: Optional name when registering a new repository (defaults to stack name).
+        branch: Git branch to track (default: 'main').
+        credential_id: Optional Git credential ID for private repositories.
+        compose_path: Relative path to Compose file inside repository (default: 'compose.yaml').
+        env_file_path: Optional relative path to .env file inside repository.
+        auto_update: Automatically pull changes and redeploy (default: False).
+        auto_update_schedule: Auto-sync schedule preset ('hourly', 'daily', 'weekly', 'custom').
+        auto_update_cron: 5-field cron expression for custom schedule (default: '0 3 * * *').
+        webhook_enabled: Enable webhook endpoint for automated CI/CD deployments (default: False).
+        webhook_secret: Optional secret token required for webhook triggering.
+        context_dir: Optional subfolder within repo to use as docker compose context.
+        build_on_deploy: Build images during deploy (default: False).
+        no_build_cache: Disable cache when building images (default: False).
+        repull_images: Force repull of images on deploy (default: False).
+        force_redeploy: Force recreate containers even if unchanged (default: False).
+        deploy_now: Immediately deploy the stack from Git upon conversion (default: False).
+        secret_provider_id: Optional secret provider ID to bind to the stack.
+        env_vars: Optional environment variable overrides (dicts with 'key', 'value', 'isSecret').
+    """
+    name, ctx, environment_id = _normalize_stack_args(name, ctx, environment_id)
+    client = ctx.request_context.lifespan_context["dockhand"]
+    env_id = await client.resolve_environment_id(environment_id)
+    body: dict[str, Any] = {
+        "branch": branch,
+        "composePath": compose_path,
+        "autoUpdate": bool(auto_update),
+        "autoUpdateSchedule": auto_update_schedule,
+        "autoUpdateCron": auto_update_cron,
+        "webhookEnabled": bool(webhook_enabled),
+        "buildOnDeploy": bool(build_on_deploy),
+        "noBuildCache": bool(no_build_cache),
+        "repullImages": bool(repull_images),
+        "forceRedeploy": bool(force_redeploy),
+        "deployNow": bool(deploy_now),
+    }
+    if repository_id is not None:
+        body["repositoryId"] = repository_id
+    if url is not None:
+        body["url"] = url
+    if repo_name is not None:
+        body["repoName"] = repo_name
+    if credential_id is not None:
+        body["credentialId"] = credential_id
+    if env_file_path is not None:
+        body["envFilePath"] = env_file_path
+    if webhook_secret is not None:
+        body["webhookSecret"] = webhook_secret
+    if context_dir is not None:
+        body["contextDir"] = context_dir
+    if secret_provider_id is not None:
+        body["secretProviderId"] = secret_provider_id
+    if env_vars is not None:
+        body["envVars"] = env_vars
+
+    if deploy_now:
+        res = await client.post_sse(
+            f"/api/stacks/{encode_path(name)}/attach",
+            json=body,
+            params={"env": env_id},
+        )
+    else:
+        res = await client.post(
+            f"/api/stacks/{encode_path(name)}/attach",
+            json=body,
+            params={"env": env_id},
+        )
+    return redact_sensitive_dict(res)
+
 def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_stacks)
     mcp.add_tool(create_stack)
@@ -545,3 +653,4 @@ def register_stack_tools(mcp: FastMCP) -> None:
     mcp.add_tool(get_stack_deploy_log)
     mcp.add_tool(get_stack_stats)
     mcp.add_tool(get_stack_path_hints)
+    mcp.add_tool(convert_stack_to_git)
