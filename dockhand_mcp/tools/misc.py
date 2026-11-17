@@ -295,7 +295,7 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
       - 'uk' (Ukrainian), 'tr' (Turkish), 'pt-BR' (Portuguese - Brazil),
       - 'fr-FR' (French), 'fr-CA' (French - Canada), 'it' (Italian),
       - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pl' (Polish),
-      - 'ja' (Japanese), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
+      - 'ja' (Japanese), 'ko' (Korean), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
 
     Args:
         ctx: FastMCP Context.

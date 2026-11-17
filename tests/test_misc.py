@@ -467,6 +467,14 @@ async def test_language_preference(mock_client):
         assert tr_route.called
         assert res_tr["language"] == "tr"
 
+        # Test v1.0.58 Korean ('ko') preference
+        ko_route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": "ko"})
+        )
+        res_ko = await set_language_preference("ko", mock_ctx)
+        assert ko_route.called
+        assert res_ko["language"] == "ko"
+
         # Security validation: Invalid locale strings rejected
         with pytest.raises(ValueError, match="Invalid language locale code"):
             await set_language_preference("invalid/path/injection", mock_ctx)
