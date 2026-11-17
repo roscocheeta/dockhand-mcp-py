@@ -221,7 +221,7 @@ async def create_git_stack(
         branch: Git branch to track (default: 'main').
         compose_path: Path to compose file in repository relative to repo root (default: 'docker-compose.yml').
         env_file_path: Path to .env file in repository (optional).
-        credential_id: Git credential ID for private repositories (optional).
+        credential_id: Git credential ID for private repositories (optional; SSH URLs require an SSH key credential, not username/password).
         deploy_now: Whether to deploy the stack immediately after creation (default: True).
         auto_update: Enable automatic syncing on a schedule (default: False).
         auto_update_cron: Cron expression for auto-sync schedule (e.g., '0 3 * * *' for 3 AM daily).

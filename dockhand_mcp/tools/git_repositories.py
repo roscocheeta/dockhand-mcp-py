@@ -22,7 +22,11 @@ async def list_git_repositories(ctx: Context = None) -> list:
     return repos
 
 async def create_git_repository(name: str, url: str, branch: str, ctx: Context = None, credential_id: int | None = None) -> dict:
-    """Create a new Git repository reference."""
+    """Create a new Git repository reference.
+
+    Note: SSH repository URLs (e.g. 'ssh://...' or 'git@...') must be paired with an
+    SSH key credential rather than a username/password credential.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"name": name, "url": url, "branch": branch}
     if credential_id is not None:
@@ -30,7 +34,11 @@ async def create_git_repository(name: str, url: str, branch: str, ctx: Context =
     return await client.post("/api/git/repositories", json=body)
 
 async def update_git_repository(repository_id: int, ctx: Context = None, name: str | None = None, url: str | None = None, branch: str | None = None, credential_id: int | None = None) -> dict:
-    """Update an existing Git repository reference."""
+    """Update an existing Git repository reference.
+
+    Note: SSH repository URLs (e.g. 'ssh://...' or 'git@...') must be paired with an
+    SSH key credential rather than a username/password credential.
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if name is not None: body["name"] = name
