@@ -50,7 +50,9 @@ jobs:
           python-version: "3.12"
 
       - name: Run Dependency Audit (pip-audit)
-        run: uv tool run pip-audit
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project -o /tmp/requirements.txt
+          uv tool run pip-audit -r /tmp/requirements.txt
 
       - name: Run SAST Security Scan (Bandit)
         run: uv tool run bandit -r dockhand_mcp -ll

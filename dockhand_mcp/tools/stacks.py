@@ -5,7 +5,7 @@ Stack (Docker Compose) management tools.
 import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict
+from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict, validate_repo_url
 
 
 def _compact_stack(s: dict) -> dict:
@@ -598,7 +598,7 @@ async def convert_stack_to_git(
     if repository_id is not None:
         body["repositoryId"] = repository_id
     if url is not None:
-        body["url"] = url
+        body["url"] = validate_repo_url(url)
     if repo_name is not None:
         body["repoName"] = repo_name
     if credential_id is not None:

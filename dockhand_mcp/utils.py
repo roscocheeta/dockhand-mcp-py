@@ -5,7 +5,7 @@ Utility functions for the Dockhand MCP server.
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from typing import Any
 
 
@@ -15,8 +15,49 @@ def encode_path(value: str) -> str:
 
     Container IDs, stack names, and other identifiers can contain characters
     that are not safe in URL path segments (e.g. '/', '+', spaces).
+    Rejects empty values and RFC 3986 dot-segments ('.', '..') to prevent
+    URL path traversal.
     """
-    return quote(str(value), safe="")
+    raw = str(value)
+    if not raw or raw in (".", ".."):
+        raise ValueError(f"Invalid path segment: {value!r}")
+    return quote(raw, safe="")
+
+
+_SCP_GIT_URL_RE = re.compile(r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+:.+$")
+
+
+def validate_repo_url(url: str) -> str:
+    """Validate that a Git repository URL uses a safe scheme (http, https, ssh, or SCP-style git@host:path)."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("Repository URL must be a non-empty string.")
+    cleaned = url.strip()
+    lowered = cleaned.lower()
+    if lowered.startswith(("ext::", "fd::")):
+        raise ValueError(f"Unsupported or unsafe Git transport in repository URL: {url!r}")
+    if "://" in cleaned:
+        parsed = urlparse(cleaned)
+        if parsed.scheme.lower() not in ("http", "https", "ssh") or not parsed.netloc:
+            raise ValueError(
+                f"Invalid repository URL scheme {parsed.scheme!r}; expected http://, https://, or ssh://."
+            )
+        return cleaned
+    if _SCP_GIT_URL_RE.match(cleaned):
+        return cleaned
+    raise ValueError(
+        f"Invalid repository URL {url!r}; expected http://, https://, ssh://, or git@host:path."
+    )
+
+
+def validate_http_url(url: str, label: str = "URL") -> str:
+    """Validate that a URL uses http:// or https:// and includes a host."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError(f"{label} must be a non-empty string.")
+    cleaned = url.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"Invalid {label} {url!r}; expected http:// or https:// with a host.")
+    return cleaned
 
 
 def truncate_id(id_str: str | None) -> str | None:
@@ -117,6 +158,9 @@ _YAML_KV_LINE_RE = re.compile(
 )
 
 
+_YAML_BLOCK_SCALAR_RE = re.compile(r"^[|>][+-]?\d*$")
+
+
 def redact_env_text(raw_text: str | None) -> str | None:
     """
     Redact values of secret keys in raw .env content or Docker Compose YAML text.
@@ -128,6 +172,7 @@ def redact_env_text(raw_text: str | None) -> str | None:
         return raw_text
 
     out_lines: list[str] = []
+    block_secret_indent: int | None = None
     for line in raw_text.splitlines(keepends=True):
         ending = ""
         body = line
@@ -143,6 +188,13 @@ def redact_env_text(raw_text: str | None) -> str | None:
             out_lines.append(line)
             continue
 
+        line_indent = len(body) - len(stripped)
+        if block_secret_indent is not None:
+            if line_indent > block_secret_indent:
+                out_lines.append(f"{' ' * line_indent}***REDACTED***{ending}")
+                continue
+            block_secret_indent = None
+
         m_env = _ENV_LINE_RE.match(body)
         if m_env:
             prefix, open_q, key, sep, val = m_env.groups()
@@ -154,9 +206,14 @@ def redact_env_text(raw_text: str | None) -> str | None:
         m_yaml = _YAML_KV_LINE_RE.match(body)
         if m_yaml:
             indent, key, sep, val = m_yaml.groups()
-            if is_secret_key(key) and not val.startswith(("{", "[")):
-                out_lines.append(f"{indent}{key}{sep}***REDACTED***{ending}")
-                continue
+            if is_secret_key(key):
+                if _YAML_BLOCK_SCALAR_RE.match(val.strip()):
+                    block_secret_indent = len(indent)
+                    out_lines.append(line)
+                    continue
+                if not val.startswith(("{", "[")):
+                    out_lines.append(f"{indent}{key}{sep}***REDACTED***{ending}")
+                    continue
 
         out_lines.append(line)
 
@@ -164,6 +221,7 @@ def redact_env_text(raw_text: str | None) -> str | None:
 
 
 _URL_USERPASS_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*://[^/:@\s]+:)([^@\s]+)(@.*)$")
+_URL_TOKEN_USERINFO_RE = re.compile(r"^((?:https?|wss?)://)([^/:@\s]+)(@.*)$", re.IGNORECASE)
 _WEBHOOK_PATH_RE = re.compile(
     r"(https?://[^/\s]+/(?:api/webhooks/\d+|services/[^/\s]+/[^/\s]+)/)([^\s/?#]+)",
     re.IGNORECASE,
@@ -179,13 +237,18 @@ def redact_url_credentials(url: str) -> str:
     m_up = _URL_USERPASS_RE.match(url)
     if m_up:
         url = f"{m_up.group(1)}***REDACTED***{m_up.group(3)}"
+    else:
+        # Redact scheme://token@host on HTTP(S)/WS(S) URLs
+        m_tok = _URL_TOKEN_USERINFO_RE.match(url)
+        if m_tok:
+            url = f"{m_tok.group(1)}***REDACTED***{m_tok.group(3)}"
 
     # Redact Discord / Slack webhook token segments in HTTP(S) URLs
     url = _WEBHOOK_PATH_RE.sub(r"\1***REDACTED***", url)
 
     # Non-HTTP Apprise schemes (e.g. discord://id/token, slack://a/b/c, tgram://bot/chat)
     scheme, _, rest = url.partition("://")
-    if scheme.lower() not in ("http", "https", "ws", "wss", "tcp", "unix") and rest:
+    if scheme.lower() not in ("http", "https", "ws", "wss", "tcp", "unix", "ssh") and rest:
         return f"{scheme}://***REDACTED***"
 
     return url
@@ -226,7 +289,10 @@ def redact_sensitive_dict(data: Any) -> Any:
             continue
 
         if isinstance(v, str):
-            if k_lower in ("url", "webhookurl", "webhook_url") and "://" in v:
+            if (
+                k_lower in ("url", "webhookurl", "webhook_url", "endpoint", "uri", "callbackurl", "callback_url")
+                or k_lower.endswith(("url", "uri"))
+            ) and "://" in v:
                 result[k] = redact_url_credentials(v)
                 continue
 

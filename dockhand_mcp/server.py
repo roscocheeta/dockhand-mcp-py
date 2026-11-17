@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from mcp.server.fastmcp import FastMCP, Context
 
 from .client import DockhandClient, DockhandAPIError, DockhandAuthError
+from .utils import redact_url_credentials
 
 # ── Logging — stderr only ────────────────────────────────────────────────
 # Stdio transport: stdout is the MCP JSON-RPC channel.
@@ -54,11 +55,12 @@ def _get_config() -> dict[str, Any]:
         )
         sys.exit(1)
 
+    safe_url = redact_url_credentials(url)
     parsed_url = urlparse(url)
     if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
         logger.error(
             "Invalid DOCKHAND_URL '%s': must start with http:// or https:// and include a host.",
-            url,
+            safe_url,
         )
         sys.exit(1)
 
@@ -66,7 +68,7 @@ def _get_config() -> dict[str, Any]:
         logger.warning(
             "SSL certificate verification is DISABLED (DOCKHAND_VERIFY_SSL=false). "
             "Connections to %s are vulnerable to MITM attacks.",
-            url,
+            safe_url,
         )
 
     return {
@@ -101,7 +103,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     )
     logger.info(
         "Dockhand MCP server starting — target: %s (SSL verify: %s, read-only: %s, auth: %s)",
-        config["url"],
+        redact_url_credentials(config["url"]),
         config["verify_ssl"],
         config["read_only"],
         "api_token" if config["api_token"] else "cookie_login",

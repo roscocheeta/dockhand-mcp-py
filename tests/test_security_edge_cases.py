@@ -193,3 +193,111 @@ class TestSecurityEdgeCases:
         # Variables map
         assert cleaned["variables"]["PORT"] == 3000
         assert cleaned["variables"]["JWT_SECRET"] == "***REDACTED***"
+
+
+class TestSecurityHardening:
+    """Tests for path traversal, URL scheme validation, redaction edge cases, and tool filtering."""
+
+    def test_encode_path_rejects_dot_segments_and_empty(self):
+        import pytest
+        from dockhand_mcp.utils import encode_path
+
+        for bad in ("", ".", ".."):
+            with pytest.raises(ValueError, match="Invalid path segment"):
+                encode_path(bad)
+        assert encode_path("my-container") == "my-container"
+        assert encode_path("a/b") == "a%2Fb"
+
+    def test_validate_repo_url(self):
+        import pytest
+        from dockhand_mcp.utils import validate_repo_url
+
+        assert validate_repo_url("https://github.com/org/repo.git") == "https://github.com/org/repo.git"
+        assert validate_repo_url("http://git.internal/org/repo.git") == "http://git.internal/org/repo.git"
+        assert validate_repo_url("ssh://git@github.com/org/repo.git") == "ssh://git@github.com/org/repo.git"
+        assert validate_repo_url("git@github.com:org/repo.git") == "git@github.com:org/repo.git"
+
+        for bad in ("", "file:///etc/passwd", "ext::sh -c id", "fd::3", "ftp://example.com/repo", "not-a-url"):
+            with pytest.raises(ValueError):
+                validate_repo_url(bad)
+
+    def test_validate_http_url(self):
+        import pytest
+        from dockhand_mcp.utils import validate_http_url
+
+        assert validate_http_url("https://hooks.slack.com/services/T/B/X") == "https://hooks.slack.com/services/T/B/X"
+        for bad in ("", "file:///etc/passwd", "ext::id", "ftp://example.com"):
+            with pytest.raises(ValueError):
+                validate_http_url(bad, label="webhook_url")
+
+    def test_redact_url_token_userinfo_and_ssh(self):
+        assert redact_url_credentials("https://ghp_secret123@github.com/org/repo.git") == "https://***REDACTED***@github.com/org/repo.git"
+        assert redact_url_credentials("ssh://git@github.com/org/repo.git") == "ssh://git@github.com/org/repo.git"
+
+    def test_redact_env_text_yaml_block_scalar(self):
+        yaml_text = (
+            "services:\n"
+            "  app:\n"
+            "    environment:\n"
+            "      DB_PASSWORD: |\n"
+            "        super-secret-line-1\n"
+            "        super-secret-line-2\n"
+            "      APP_PORT: 8080\n"
+        )
+        redacted = redact_env_text(yaml_text)
+        assert "super-secret-line-1" not in redacted
+        assert "super-secret-line-2" not in redacted
+        assert "APP_PORT: 8080" in redacted
+
+    def test_disable_tools_and_destructive_annotations(self):
+        from mcp.server.fastmcp import FastMCP
+        from dockhand_mcp.tools import register_all_tools, get_tool_annotations
+
+        mcp = FastMCP("test-disable")
+        register_all_tools(mcp, read_only=False, disabled_tools=frozenset({"run_container_exec", "create_user"}))
+        tools = mcp._tool_manager._tools
+        assert "run_container_exec" not in tools
+        assert "create_user" not in tools
+        assert "list_containers" in tools
+
+        for tool_name in ("update_stack_env_raw", "rename_container_file", "update_container", "stop_container", "restart_stack"):
+            ann = get_tool_annotations(tool_name)
+            assert ann.destructiveHint is True, f"{tool_name} should have destructiveHint=True"
+
+    async def test_upload_container_file_rejects_traversal_and_invalid_base64(self, mock_client):
+        from unittest.mock import MagicMock
+        import pytest
+        from dockhand_mcp.tools.containers import upload_container_file
+
+        mock_ctx = MagicMock()
+        mock_ctx.request_context.lifespan_context = {"dockhand": mock_client}
+
+        for bad_name in ("", ".", "..", "../evil.sh", "sub/evil.sh", "sub\\evil.sh"):
+            with pytest.raises(ValueError, match="Invalid upload filename"):
+                await upload_container_file(1, "c1", "/tmp", bad_name, "aGVsbG8=", mock_ctx)
+
+        with pytest.raises(ValueError, match="Invalid base64_content"):
+            await upload_container_file(1, "c1", "/tmp", "ok.txt", "!!!not-base64!!!", mock_ctx)
+
+    async def test_list_config_sets_redacts_and_create_notification_validates(self, mock_client):
+        from unittest.mock import MagicMock
+        import pytest
+        import respx
+        from httpx import Response
+        from dockhand_mcp.tools.misc import list_config_sets, create_notification
+
+        mock_ctx = MagicMock()
+        mock_ctx.request_context.lifespan_context = {"dockhand": mock_client}
+
+        with pytest.raises(ValueError, match="Invalid webhook_url"):
+            await create_notification("bad", "file:///etc/passwd", mock_ctx)
+
+        with respx.mock:
+            respx.get("http://dockhand.test/api/config-sets").mock(
+                return_value=Response(
+                    200,
+                    json=[{"id": 1, "name": "db", "envVars": [{"key": "DB_PASSWORD", "value": "topsecret", "isSecret": True}]}],
+                )
+            )
+            res = await list_config_sets(mock_ctx)
+            assert res[0]["envVars"][0]["value"] == "***REDACTED***"

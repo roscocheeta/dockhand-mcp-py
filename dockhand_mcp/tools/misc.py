@@ -5,7 +5,7 @@ Miscellaneous and Tier 3 Dockhand tools.
 import re
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, redact_sensitive_dict
+from dockhand_mcp.utils import encode_path, redact_sensitive_dict, validate_http_url
 
 
 
@@ -17,6 +17,7 @@ async def list_notifications(ctx: Context = None) -> list:
 
 async def create_notification(name: str, webhook_url: str, ctx: Context = None) -> dict:
     """Create a new notification webhook."""
+    webhook_url = validate_http_url(webhook_url, label="webhook_url")
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.post("/api/notifications", json={"name": name, "url": webhook_url})
     return redact_sensitive_dict(data)
@@ -85,7 +86,8 @@ async def list_secret_providers(ctx: Context = None) -> list:
 async def list_config_sets(ctx: Context = None) -> list:
     """List configuration sets (environment variable collections)."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get("/api/config-sets")
+    data = await client.get("/api/config-sets")
+    return redact_sensitive_dict(data)
 
 async def get_auto_update(environment_id: int, container_id: str, ctx: Context = None) -> dict:
     """Check the auto-update policy for a container."""

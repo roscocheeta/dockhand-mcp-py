@@ -433,11 +433,18 @@ async def upload_container_file(
     *args: Any,
 ) -> dict:
     """Upload a file to a container directory using base64 encoded content. Owner format: 'user', 'uid', 'user:group', 'uid:gid'."""
+    if not filename or filename in (".", "..") or "/" in filename or "\\" in filename:
+        raise ValueError(f"Invalid upload filename {filename!r}: must be a plain filename without path separators.")
+
     client = ctx.request_context.lifespan_context["dockhand"]
     try:
-        file_bytes = base64.b64decode(base64_content)
+        file_bytes = base64.b64decode(base64_content, validate=True)
     except Exception as e:
         raise ValueError(f"Invalid base64_content: {e}")
+
+    max_upload_bytes = 10 * 1024 * 1024
+    if len(file_bytes) > max_upload_bytes:
+        raise ValueError(f"Upload exceeds maximum allowed size of {max_upload_bytes} bytes.")
 
     files = {"files": (filename, file_bytes)}
     data = {}
@@ -448,7 +455,7 @@ async def upload_container_file(
         f"/api/containers/{encode_path(container_id)}/files/upload",
         files=files,
         data=data,
-        params={"env": environment_id, "path": directory},
+        params={"env": await client.resolve_environment_id(environment_id), "path": directory},
     )
 
 async def create_container_path(
@@ -530,7 +537,7 @@ async def run_container_exec(
     data = await client.post(
         f"/api/containers/{encode_path(container_id)}/exec/run", 
         json=body, 
-        params={"envId": environment_id}
+        params={"envId": await client.resolve_environment_id(environment_id)}
     )
     if isinstance(data, dict) and max_bytes and max_bytes > 0:
         data = dict(data)
