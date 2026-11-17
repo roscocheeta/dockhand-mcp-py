@@ -3,7 +3,7 @@ Environment (Docker Host) management tools.
 """
 
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path
+from dockhand_mcp.utils import encode_path, redact_sensitive_dict
 
 
 ENVIRONMENT_CREDENTIAL_FIELDS = {"hawserToken", "tlsKey"}
@@ -13,7 +13,8 @@ def _strip_environment_credentials(env: dict) -> dict:
     """Strip sensitive fields from an environment payload."""
     if not isinstance(env, dict):
         return env
-    return {k: v for k, v in env.items() if k not in ENVIRONMENT_CREDENTIAL_FIELDS}
+    stripped = {k: v for k, v in env.items() if k not in ENVIRONMENT_CREDENTIAL_FIELDS}
+    return redact_sensitive_dict(stripped)
 
 
 
@@ -26,11 +27,10 @@ async def list_environments(ctx: Context = None) -> dict:
     return {"environments": envs}
 
 async def get_environment(environment_id: int | None = None, ctx: Context = None) -> dict:
-    client = ctx.request_context.lifespan_context["dockhand"]
-    resolved_id = await client.resolve_environment_id(environment_id)
     """Get details for a specific environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    env = await client.get(f"/api/environments/{encode_path(str(environment_id))}")
+    resolved_id = await client.resolve_environment_id(environment_id)
+    env = await client.get(f"/api/environments/{encode_path(str(resolved_id))}")
     return _strip_environment_credentials(env)
 
 async def create_environment(
@@ -151,18 +151,16 @@ async def delete_environment(environment_id: int, ctx: Context = None) -> dict:
     return await client.delete(f"/api/environments/{encode_path(str(environment_id))}")
 
 async def test_environment(environment_id: int | None = None, ctx: Context = None) -> dict:
-    client = ctx.request_context.lifespan_context["dockhand"]
-    resolved_id = await client.resolve_environment_id(environment_id)
     """Test the connection to an existing environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.post(f"/api/environments/{encode_path(str(environment_id))}/test")
+    resolved_id = await client.resolve_environment_id(environment_id)
+    return await client.post(f"/api/environments/{encode_path(str(resolved_id))}/test")
 
 async def get_environment_update_check_settings(environment_id: int | None = None, ctx: Context = None) -> dict:
-    client = ctx.request_context.lifespan_context["dockhand"]
-    resolved_id = await client.resolve_environment_id(environment_id)
     """Get the automatic container-image update-check schedule and minimum release age settings for an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/environments/{encode_path(str(environment_id))}/update-check")
+    resolved_id = await client.resolve_environment_id(environment_id)
+    return await client.get(f"/api/environments/{encode_path(str(resolved_id))}/update-check")
 
 async def update_environment_update_check_settings(
     environment_id: int,
@@ -204,11 +202,10 @@ async def get_environment_report(
     return await client.get("/api/environments/report", params=params)
 
 async def get_environment_report_settings(environment_id: int | None = None, ctx: Context = None) -> dict:
-    client = ctx.request_context.lifespan_context["dockhand"]
-    resolved_id = await client.resolve_environment_id(environment_id)
     """Get the scheduled state report configuration for an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
-    return await client.get(f"/api/environments/{encode_path(str(environment_id))}/report")
+    resolved_id = await client.resolve_environment_id(environment_id)
+    return await client.get(f"/api/environments/{encode_path(str(resolved_id))}/report")
 
 async def update_environment_report_settings(
     environment_id: int,

@@ -5,16 +5,23 @@ Git Stack management tools.
 import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, redact_sensitive_dict, strip_nulls
+from dockhand_mcp.utils import (
+    encode_path,
+    redact_sensitive_dict,
+    redact_url_credentials,
+    strip_nulls,
+    validate_repo_url,
+)
 
 
 def _compact_git_stack(s: dict) -> dict:
     """Keep only essential fields for token efficiency."""
     repo = s.get("repository") if isinstance(s.get("repository"), dict) else {}
+    raw_url = s.get("Url") or s.get("url") or repo.get("url")
     return {
         "Id": s.get("Id") or s.get("id"),
         "Name": s.get("stackName") or s.get("Name") or s.get("name"),
-        "Url": s.get("Url") or s.get("url") or repo.get("url"),
+        "Url": redact_url_credentials(raw_url) if isinstance(raw_url, str) else raw_url,
         "Branch": s.get("Branch") or s.get("branch") or repo.get("branch"),
         "Status": s.get("syncStatus") or s.get("Status") or s.get("status"),
         "EnvironmentId": s.get("EnvironmentId") or s.get("environmentId"),
@@ -229,6 +236,7 @@ async def create_git_stack(
         webhook_secret: Secret for webhook verification (auto-generated if not provided).
         env_vars: Optional environment variable overrides (list of dicts with 'key', 'value', optional 'isSecret').
     """
+    url = validate_repo_url(url)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     body: dict = {

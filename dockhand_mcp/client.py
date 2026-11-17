@@ -18,6 +18,8 @@ from typing import Any, Optional
 
 import httpx
 
+from .utils import redact_url_credentials
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,7 +117,7 @@ class DockhandAuth:
             resp = await client.post(login_url, json=payload)
         except httpx.RequestError as exc:
             raise DockhandAuthError(
-                f"Failed to connect to Dockhand at {self._base_url}: {exc}"
+                f"Failed to connect to Dockhand at {redact_url_credentials(self._base_url)}: {exc}"
             ) from exc
 
         if resp.status_code != 200:
