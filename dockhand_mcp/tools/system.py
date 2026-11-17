@@ -52,7 +52,7 @@ async def prune_images(environment_id: int | None = None, ctx: Context = None, d
         dangling: If true, only prune dangling images (not tagged and not used). If false, prune all unused images.
     """
     client = ctx.request_context.lifespan_context["dockhand"]
-    params = {"env": environment_id}
+    params: dict = {"env": await client.resolve_environment_id(environment_id)}
     if dangling:
         params["dangling"] = "true"
     return await client.post("/api/system/prune/images", params=params)

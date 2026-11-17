@@ -34,12 +34,15 @@ _READ_ONLY_EXACT = frozenset({
     "validate_stack_env",
 })
 
-_DESTRUCTIVE_PREFIXES = ("delete_", "remove_", "prune_", "down_", "reset_", "exec_")
+_DESTRUCTIVE_PREFIXES = ("delete_", "remove_", "prune_", "down_", "reset_", "exec_", "stop_", "restart_")
 _DESTRUCTIVE_EXACT = frozenset({
     "run_container_exec",
     "write_container_file_content",
     "upload_container_file",
     "chown_container_file",
+    "rename_container_file",
+    "update_container",
+    "update_stack_env_raw",
     "execute_batch_operation",
 })
 
@@ -67,9 +70,15 @@ class _AnnotatedToolRegistrar:
     and skip non-read-only tools when DOCKHAND_READ_ONLY is enabled.
     """
 
-    def __init__(self, mcp: FastMCP, read_only: bool = False):
+    def __init__(
+        self,
+        mcp: FastMCP,
+        read_only: bool = False,
+        disabled_tools: frozenset[str] = frozenset(),
+    ):
         self._mcp = mcp
         self._read_only = read_only
+        self._disabled_tools = disabled_tools
 
     def add_tool(
         self,
@@ -81,6 +90,8 @@ class _AnnotatedToolRegistrar:
         **kwargs: Any,
     ) -> None:
         tool_name = name or fn.__name__
+        if tool_name in self._disabled_tools:
+            return
         if self._read_only and not is_read_only_tool(tool_name):
             return
         effective_annotations = annotations or get_tool_annotations(tool_name)
@@ -118,11 +129,18 @@ class _AnnotatedToolRegistrar:
         return getattr(self._mcp, item)
 
 
-def register_all_tools(mcp: FastMCP, read_only: Optional[bool] = None) -> None:
+def register_all_tools(
+    mcp: FastMCP,
+    read_only: Optional[bool] = None,
+    disabled_tools: Optional[frozenset[str]] = None,
+) -> None:
     """Register all tool modules on the FastMCP/MCPServer instance."""
     if read_only is None:
         read_only = os.environ.get("DOCKHAND_READ_ONLY", "false").lower() in ("true", "1", "yes")
-    registrar: Any = _AnnotatedToolRegistrar(mcp, read_only=read_only)
+    if disabled_tools is None:
+        raw_disabled = os.environ.get("DOCKHAND_DISABLE_TOOLS", "")
+        disabled_tools = frozenset(t.strip() for t in raw_disabled.split(",") if t.strip())
+    registrar: Any = _AnnotatedToolRegistrar(mcp, read_only=read_only, disabled_tools=disabled_tools)
     register_environment_tools(registrar)
     register_system_tools(registrar)
     register_container_tools(registrar)
