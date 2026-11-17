@@ -4,6 +4,22 @@ version = "0.7.1"
 description = "Python MCP Server for Dockhand Docker Management API"
 readme = "README.md"
 license = {text = "MIT"}
+authors = [
+    { name = "roscocheeta" },
+]
+keywords = ["mcp", "dockhand", "docker", "fastmcp", "homelab", "containers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+]
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0,<2.0.0",
@@ -13,6 +29,11 @@ dependencies = [
 
 [project.scripts]
 dockhand-mcp = "dockhand_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/roscocheeta/dockhand-mcp-py"
+Repository = "https://github.com/roscocheeta/dockhand-mcp-py"
+Issues = "https://github.com/roscocheeta/dockhand-mcp-py/issues"
 
 [project.optional-dependencies]
 dev = [

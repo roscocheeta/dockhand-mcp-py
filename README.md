@@ -118,7 +118,7 @@ In your extension's MCP settings configuration (`mcp_settings.json`):
 
 ---
 
-## Available Tools (74+ Tools)
+## Available Tools (181 Tools)
 
 ### Containers & Scheduled Actions
 - **Inspection & State**: `list_containers` (supports `status="running"` and `search="*pattern*"` wildcard filters), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
