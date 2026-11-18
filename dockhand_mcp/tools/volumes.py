@@ -2,9 +2,10 @@
 Volume management tools.
 """
 
+import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, strip_nulls
+from dockhand_mcp.utils import encode_path, paginate_items, strip_nulls
 
 
 def _compact_volume(v: dict) -> dict:
@@ -16,17 +17,44 @@ def _compact_volume(v: dict) -> dict:
     }
 
 
-async def list_volumes(environment_id: int | None = None, ctx: Context = None) -> list:
-    """List all Docker volumes in an environment."""
+async def list_volumes(
+    environment_id: int | None = None,
+    ctx: Context = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
+    """List all Docker volumes in an environment.
+
+    Args:
+        environment_id: Environment ID (optional, auto-resolves to default).
+        ctx: FastMCP Context.
+        search: Optional volume name wildcard filter ('*' and '?').
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     volumes = await client.get("/api/volumes", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(volumes, dict) and "Volumes" in volumes:
         vol_list = volumes["Volumes"]
         if isinstance(vol_list, list):
-            volumes["Volumes"] = [_compact_volume(v) for v in vol_list]
+            items = [_compact_volume(v) for v in vol_list]
+            if search:
+                pat = search.strip().lower()
+                items = [v for v in items if fnmatch.fnmatchcase((v.get("Name") or "").lower(), pat)]
+            items.sort(key=lambda v: (v.get("Name") or "").lower())
+            paginated = paginate_items(items, limit=limit, offset=offset)
+            if isinstance(paginated, dict):
+                return paginated
+            volumes["Volumes"] = paginated
         return volumes
     elif isinstance(volumes, list):
-        return [_compact_volume(v) for v in volumes]
+        items = [_compact_volume(v) for v in volumes]
+        if search:
+            pat = search.strip().lower()
+            items = [v for v in items if fnmatch.fnmatchcase((v.get("Name") or "").lower(), pat)]
+        items.sort(key=lambda v: (v.get("Name") or "").lower())
+        return paginate_items(items, limit=limit, offset=offset)
     return volumes
 
 async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:

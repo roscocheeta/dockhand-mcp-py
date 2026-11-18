@@ -2,9 +2,10 @@
 Network management tools.
 """
 
+import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, strip_nulls, truncate_id
+from dockhand_mcp.utils import encode_path, paginate_items, strip_nulls, truncate_id
 
 
 def _compact_network(n: dict) -> dict:
@@ -17,12 +18,35 @@ def _compact_network(n: dict) -> dict:
     }
 
 
-async def list_networks(environment_id: int | None = None, ctx: Context = None) -> list:
-    """List all Docker networks in an environment."""
+async def list_networks(
+    environment_id: int | None = None,
+    ctx: Context = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
+    """List all Docker networks in an environment.
+
+    Args:
+        environment_id: Environment ID (optional, auto-resolves to default).
+        ctx: FastMCP Context.
+        search: Optional network name or ID wildcard filter ('*' and '?').
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     networks = await client.get("/api/networks", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(networks, list):
-        return [_compact_network(n) for n in networks]
+        ordered = sorted(networks, key=lambda n: str(n.get("Id") or n.get("id") or ""))
+        items = [_compact_network(n) for n in ordered]
+        if search:
+            pat = search.strip().lower()
+            items = [
+                n for n in items
+                if fnmatch.fnmatchcase((n.get("Name") or "").lower(), pat)
+                or fnmatch.fnmatchcase((n.get("Id") or "").lower(), pat)
+            ]
+        return paginate_items(items, limit=limit, offset=offset)
     return networks
 
 async def inspect_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:

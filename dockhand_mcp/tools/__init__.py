@@ -42,6 +42,7 @@ _DESTRUCTIVE_EXACT = frozenset({
     "chown_container_file",
     "rename_container_file",
     "update_container",
+    "update_container_runtime",
     "update_stack_env_raw",
     "execute_batch_operation",
 })

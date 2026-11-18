@@ -100,3 +100,21 @@ async def test_list_get_inspect_delete_network(mock_client):
         assert del_route.called
         assert deleted["deleted"] is True
 
+
+@pytest.mark.asyncio
+async def test_list_networks_search_and_pagination(mock_client):
+    from dockhand_mcp.tools.networks import list_networks
+    mock_ctx = MockContext(mock_client)
+    nets_payload = [
+        {"Id": f"n{i:012d}", "Name": f"net-{i}", "Driver": "bridge", "Scope": "local"}
+        for i in reversed(range(4))
+    ]
+    with respx.mock:
+        respx.get("http://dockhand.test/api/networks?env=1").mock(
+            return_value=Response(200, json=nets_payload)
+        )
+        res = await list_networks(environment_id=1, ctx=mock_ctx, search="net-*", limit=2, offset=2)
+        assert res["total"] == 4
+        assert res["hasMore"] is False
+        assert [n["Name"] for n in res["items"]] == ["net-2", "net-3"]
+

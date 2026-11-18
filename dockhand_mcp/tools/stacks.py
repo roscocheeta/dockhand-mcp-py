@@ -5,7 +5,7 @@ Stack (Docker Compose) management tools.
 import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, redact_env_text, redact_sensitive_dict, validate_repo_url
+from dockhand_mcp.utils import encode_path, paginate_items, redact_env_text, redact_sensitive_dict, validate_repo_url
 
 
 def _compact_stack(s: dict) -> dict:
@@ -42,14 +42,17 @@ async def list_stacks(
     environment_id: int | None = None,
     ctx: Context = None,
     search: str | None = None,
-    *args: Any,
-) -> list:
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
     """List all Docker Compose stacks in an environment.
 
     Args:
         environment_id: Environment ID (optional, auto-resolves to default).
         ctx: FastMCP Context.
         search: Optional stack name filter supporting wildcards ('*' and '?'), e.g. 'prod-*' or '*media*'.
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
     """
     if environment_id is not None and not isinstance(environment_id, int):
         if hasattr(environment_id, "request_context"):
@@ -65,8 +68,8 @@ async def list_stacks(
         items = [_compact_stack(s) for s in stacks]
         if search:
             search_pat = search.strip().lower()
-            return [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
-        return items
+            items = [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
+        return paginate_items(items, limit=limit, offset=offset)
     return stacks
 
 async def create_stack(

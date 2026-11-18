@@ -1,5 +1,7 @@
 import pytest
 from dockhand_mcp.utils import (
+    paginate_items,
+    parse_memory_bytes,
     parse_since_to_epoch,
     redact_env_secrets,
     is_secret_key,
@@ -231,3 +233,56 @@ class TestUtils:
 
         with pytest.raises(ValueError, match="Invalid type for 'since'"):
             parse_since_to_epoch(["invalid", "type"])
+
+    def test_paginate_items(self):
+        items = [{"id": i} for i in range(5)]
+        assert paginate_items(items) == items
+        assert paginate_items(items, offset=2) == [{"id": 2}, {"id": 3}, {"id": 4}]
+
+        page1 = paginate_items(items, limit=2, offset=0)
+        assert page1 == {
+            "items": [{"id": 0}, {"id": 1}],
+            "total": 5,
+            "limit": 2,
+            "offset": 0,
+            "hasMore": True,
+        }
+        page3 = paginate_items(items, limit=2, offset=4)
+        assert page3 == {
+            "items": [{"id": 4}],
+            "total": 5,
+            "limit": 2,
+            "offset": 4,
+            "hasMore": False,
+        }
+
+        for bad_offset in (-1, True, "0"):
+            with pytest.raises(ValueError, match="Invalid 'offset'"):
+                paginate_items(items, limit=2, offset=bad_offset)  # type: ignore[arg-type]
+
+        for bad_limit in (0, -5, True, "2"):
+            with pytest.raises(ValueError, match="Invalid 'limit'"):
+                paginate_items(items, limit=bad_limit)  # type: ignore[arg-type]
+
+    def test_parse_memory_bytes(self):
+        assert parse_memory_bytes(0) == 0
+        assert parse_memory_bytes("0") == 0
+        assert parse_memory_bytes(1024) == 1024
+        assert parse_memory_bytes("512m") == 512 * 1024**2
+        assert parse_memory_bytes("512MiB") == 512 * 1024**2
+        assert parse_memory_bytes("2g") == 2 * 1024**3
+        assert parse_memory_bytes("1.5G") == int(round(1.5 * 1024**3))
+        assert parse_memory_bytes("256k") == 256 * 1024
+        assert parse_memory_bytes("1tb") == 1024**4
+        assert parse_memory_bytes(-1, allow_negative_one=True) == -1
+        assert parse_memory_bytes("-1", allow_negative_one=True) == -1
+        assert parse_memory_bytes("9007199254740993") == 9007199254740993
+        assert parse_memory_bytes("536870912.500000001") == 536870913
+
+        for bad in (-1, -100, True, "", "abc", "512x", "512Mıb", "999999999999999t"):
+            with pytest.raises(ValueError, match="Invalid memory value"):
+                parse_memory_bytes(bad)  # type: ignore[arg-type]
+
+        for zero_val in (0, "0"):
+            with pytest.raises(ValueError, match="Invalid memory value"):
+                parse_memory_bytes(zero_val, allow_zero=False)

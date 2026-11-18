@@ -105,3 +105,34 @@ async def test_list_get_inspect_delete_volume(mock_client):
         assert del_route.called
         assert deleted["deleted"] is True
 
+
+@pytest.mark.asyncio
+async def test_list_volumes_search_and_pagination(mock_client):
+    from dockhand_mcp.tools.volumes import list_volumes
+    mock_ctx = MockContext(mock_client)
+    vols_payload = {
+        "Volumes": [
+            {"Name": f"data-{i}", "Driver": "local", "Mountpoint": f"/mnt/{i}"}
+            for i in reversed(range(4))
+        ]
+    }
+    with respx.mock:
+        respx.get("http://dockhand.test/api/volumes?env=1").mock(
+            return_value=Response(200, json=vols_payload)
+        )
+        res = await list_volumes(environment_id=1, ctx=mock_ctx, search="data-*", limit=2, offset=0)
+        assert res["total"] == 4
+        assert res["hasMore"] is True
+        assert [v["Name"] for v in res["items"]] == ["data-0", "data-1"]
+
+        respx.get("http://dockhand.test/api/volumes?env=2").mock(
+            return_value=Response(
+                200,
+                json=[{"Name": f"flat-{i}", "Driver": "local", "Mountpoint": f"/flat/{i}"} for i in range(3)],
+            )
+        )
+        res_flat = await list_volumes(environment_id=2, ctx=mock_ctx, search="flat-*", limit=2, offset=1)
+        assert res_flat["total"] == 3
+        assert res_flat["hasMore"] is False
+        assert [v["Name"] for v in res_flat["items"]] == ["flat-1", "flat-2"]
+
