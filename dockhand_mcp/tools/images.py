@@ -41,14 +41,15 @@ async def list_images(
             images,
             key=lambda i: (-(i.get("Created") or i.get("created") or 0), str(i.get("Id") or i.get("id") or "")),
         )
-        items = [_compact_image(i) for i in ordered]
         if search:
             pat = search.strip().lower()
-            items = [
-                i for i in items
-                if fnmatch.fnmatchcase((i.get("Id") or "").lower(), pat)
-                or any(fnmatch.fnmatchcase(str(tag).lower(), pat) for tag in (i.get("RepoTags") or []))
+            ordered = [
+                i for i in ordered
+                if fnmatch.fnmatchcase(str(i.get("Id") or i.get("id") or "").lower(), pat)
+                or fnmatch.fnmatchcase(str(truncate_id(i.get("Id") or i.get("id")) or "").lower(), pat)
+                or any(fnmatch.fnmatchcase(str(tag).lower(), pat) for tag in (i.get("RepoTags") or i.get("repoTags") or []))
             ]
+        items = [_compact_image(i) for i in ordered]
         return paginate_items(items, limit=limit, offset=offset)
     return images
 

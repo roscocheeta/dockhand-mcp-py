@@ -62,7 +62,14 @@ async def list_containers(
     env_id = await client.resolve_environment_id(environment_id)
     containers = await client.get("/api/containers", params={"env": env_id})
     if isinstance(containers, list):
-        items = [_compact_container(c) for c in containers]
+        ordered = sorted(
+            containers,
+            key=lambda c: (
+                str(c.get("Name") or c.get("name") or (c.get("Names", [""])[0] if c.get("Names") else "")).lower(),
+                str(c.get("Id") or c.get("id") or ""),
+            ),
+        )
+        items = [_compact_container(c) for c in ordered]
         if status:
             s_clean = status.strip().lower()
             items = [c for c in items if (c.get("State") or "").lower() == s_clean]

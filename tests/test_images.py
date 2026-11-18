@@ -120,3 +120,8 @@ async def test_list_images_search_and_pagination(mock_client, mock_ctx):
         assert res["total"] == 4
         assert res["hasMore"] is True
         assert [i["RepoTags"][0] for i in res["items"]] == ["app/img-1:latest", "app/img-2:latest"]
+
+        # Raw full-ID search (beyond 12-char truncation)
+        res_raw_id = await list_images(environment_id=1, ctx=mock_ctx, search="*00020000", limit=5, offset=0)
+        assert res_raw_id["total"] == 1
+        assert res_raw_id["items"][0]["RepoTags"] == ["app/img-2:latest"]

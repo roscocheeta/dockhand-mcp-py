@@ -441,7 +441,7 @@ async def test_convert_git_stack_to_local(mock_client):
 async def test_list_git_stacks_pagination(mock_client):
     from dockhand_mcp.tools.git_stacks import list_git_stacks
     mock_ctx = MockContext(mock_client)
-    payload = [{"id": i, "stackName": f"git-{i}", "url": "https://github.com/org/repo", "syncStatus": "synced"} for i in range(4)]
+    payload = [{"id": i, "stackName": f"git-{i}", "url": "https://github.com/org/repo", "syncStatus": "synced"} for i in reversed(range(4))]
     with respx.mock:
         respx.get("http://dockhand.test/api/git/stacks").mock(
             return_value=Response(200, json=payload)

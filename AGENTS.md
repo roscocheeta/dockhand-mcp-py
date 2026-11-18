@@ -146,7 +146,7 @@ When preparing and publishing a new release:
 3. **Execute Local Quality Gates**:
    ```bash
    uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
-   uv tool run pip-audit
+   uv export --locked --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt
    uv tool run bandit -r dockhand_mcp -ll
    uv build
    ```

@@ -38,14 +38,15 @@ async def list_networks(
     networks = await client.get("/api/networks", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(networks, list):
         ordered = sorted(networks, key=lambda n: str(n.get("Id") or n.get("id") or ""))
-        items = [_compact_network(n) for n in ordered]
         if search:
             pat = search.strip().lower()
-            items = [
-                n for n in items
-                if fnmatch.fnmatchcase((n.get("Name") or "").lower(), pat)
-                or fnmatch.fnmatchcase((n.get("Id") or "").lower(), pat)
+            ordered = [
+                n for n in ordered
+                if fnmatch.fnmatchcase(str(n.get("Name") or n.get("name") or "").lower(), pat)
+                or fnmatch.fnmatchcase(str(n.get("Id") or n.get("id") or "").lower(), pat)
+                or fnmatch.fnmatchcase(str(truncate_id(n.get("Id") or n.get("id")) or "").lower(), pat)
             ]
+        items = [_compact_network(n) for n in ordered]
         return paginate_items(items, limit=limit, offset=offset)
     return networks
 

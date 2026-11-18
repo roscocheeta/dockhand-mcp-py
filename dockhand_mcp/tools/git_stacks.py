@@ -69,7 +69,8 @@ async def list_git_stacks(
     client = ctx.request_context.lifespan_context["dockhand"]
     stacks = await client.get("/api/git/stacks")
     if isinstance(stacks, list):
-        items = [_compact_git_stack(s) for s in stacks]
+        ordered = sorted(stacks, key=lambda s: str(s.get("Id") or s.get("id") or ""))
+        items = [_compact_git_stack(s) for s in ordered]
         if search:
             search_pat = search.strip().lower()
             items = [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]

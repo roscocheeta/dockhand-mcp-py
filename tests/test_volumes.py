@@ -136,3 +136,9 @@ async def test_list_volumes_search_and_pagination(mock_client):
         assert res_flat["hasMore"] is False
         assert [v["Name"] for v in res_flat["items"]] == ["flat-1", "flat-2"]
 
+        respx.get("http://dockhand.test/api/volumes?env=3").mock(
+            return_value=Response(200, json={"Volumes": None})
+        )
+        res_null = await list_volumes(environment_id=3, ctx=mock_ctx, limit=10, offset=0)
+        assert res_null == {"items": [], "total": 0, "limit": 10, "offset": 0, "hasMore": False}
+

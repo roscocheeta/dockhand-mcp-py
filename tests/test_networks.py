@@ -106,7 +106,7 @@ async def test_list_networks_search_and_pagination(mock_client):
     from dockhand_mcp.tools.networks import list_networks
     mock_ctx = MockContext(mock_client)
     nets_payload = [
-        {"Id": f"n{i:012d}", "Name": f"net-{i}", "Driver": "bridge", "Scope": "local"}
+        {"Id": f"n{i:012d}tail{i}", "Name": f"net-{i}", "Driver": "bridge", "Scope": "local"}
         for i in reversed(range(4))
     ]
     with respx.mock:
@@ -117,4 +117,9 @@ async def test_list_networks_search_and_pagination(mock_client):
         assert res["total"] == 4
         assert res["hasMore"] is False
         assert [n["Name"] for n in res["items"]] == ["net-2", "net-3"]
+
+        # Raw full-ID search (beyond 12-char truncation)
+        res_raw_id = await list_networks(environment_id=1, ctx=mock_ctx, search="*tail1", limit=5, offset=0)
+        assert res_raw_id["total"] == 1
+        assert res_raw_id["items"][0]["Name"] == "net-1"
 

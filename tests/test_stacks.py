@@ -392,7 +392,7 @@ async def test_stacks_wildcard_search(mock_client, mock_ctx):
 
         prod_stacks = await list_stacks(environment_id=1, ctx=mock_ctx, search="prod-*")
         assert len(prod_stacks) == 2
-        assert [s["Name"] for s in prod_stacks] == ["prod-web", "prod-db"]
+        assert [s["Name"] for s in prod_stacks] == ["prod-db", "prod-web"]
 
         media_stacks = await list_stacks(environment_id=1, ctx=mock_ctx, search="*arr*")
         assert len(media_stacks) == 1
@@ -549,7 +549,7 @@ async def test_list_stacks_pagination(mock_client):
     assert stacks_tool is not None
     assert "args" not in stacks_tool.parameters.get("properties", {})
 
-    payload = [{"id": i, "name": f"stack-{i}", "status": "running", "environmentId": 1} for i in range(5)]
+    payload = [{"id": i, "name": f"stack-{i}", "status": "running", "environmentId": 1} for i in reversed(range(5))]
     with respx.mock:
         respx.get("http://dockhand.test/api/stacks?env=1").mock(
             return_value=Response(200, json=payload)
