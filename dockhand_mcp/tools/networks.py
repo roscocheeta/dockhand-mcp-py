@@ -50,7 +50,7 @@ async def list_networks(
         return paginate_items(items, limit=limit, offset=offset)
     return networks
 
-async def inspect_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def inspect_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
     """Inspect a specific Docker network."""
@@ -61,7 +61,7 @@ async def inspect_network(network_id: str, ctx: Context = None, environment_id: 
     )
     return strip_nulls(data)
 
-async def delete_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def delete_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
     """⚠️ DESTRUCTIVE: Delete a Docker network. Connected containers will lose connectivity."""
@@ -81,7 +81,6 @@ async def create_network(
     ipam: dict | None = None,
     internal: bool = False,
     attachable: bool = False,
-    *args: Any
 ) -> dict:
     if isinstance(name, int):
         environment_id, name, ctx = name, str(ctx), environment_id
@@ -114,7 +113,7 @@ async def create_network(
         
     return await client.post("/api/networks", json=body, params={"env": await client.resolve_environment_id(environment_id)})
 
-async def get_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def get_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
     """Get details for a specific Docker network."""

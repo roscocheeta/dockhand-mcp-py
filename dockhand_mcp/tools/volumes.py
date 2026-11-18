@@ -59,7 +59,7 @@ async def list_volumes(
         return paginate_items(items, limit=limit, offset=offset)
     return volumes
 
-async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
     """Inspect a specific Docker volume."""
@@ -70,7 +70,7 @@ async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: 
     )
     return strip_nulls(data)
 
-async def delete_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def delete_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
     """⚠️ DESTRUCTIVE: Delete a Docker volume. All data stored in this volume will be permanently lost."""
@@ -80,7 +80,7 @@ async def delete_volume(volume_name: str, ctx: Context = None, environment_id: i
         params={"env": await client.resolve_environment_id(environment_id)}
     )
 
-async def get_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def get_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
     """Get details for a specific Docker volume."""
@@ -98,7 +98,6 @@ async def create_volume(
     driver: str = "local",
     driver_opts: dict | None = None,
     labels: dict | None = None,
-    *args: Any
 ) -> dict:
     if isinstance(name, int):
         environment_id, name, ctx = name, str(ctx), environment_id

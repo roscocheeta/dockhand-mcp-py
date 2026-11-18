@@ -53,7 +53,7 @@ async def list_images(
         return paginate_items(items, limit=limit, offset=offset)
     return images
 
-async def get_image_history(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list:
+async def get_image_history(image_id: str, ctx: Context = None, environment_id: int | None = None) -> list:
     if isinstance(image_id, int):
         environment_id, image_id, ctx = image_id, str(ctx), environment_id
     """Get history for an image."""
@@ -64,7 +64,7 @@ async def get_image_history(image_id: str, ctx: Context = None, environment_id: 
     )
     return strip_nulls(data)
 
-async def remove_image(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def remove_image(image_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
     if isinstance(image_id, int):
         environment_id, image_id, ctx = image_id, str(ctx), environment_id
     """Remove/delete an image from the environment."""
@@ -79,7 +79,6 @@ async def pull_image(
     ctx: Context = None,
     environment_id: int | None = None,
     scan_after_pull: bool = False,
-    *args: Any,
 ) -> dict:
     if isinstance(image, int):
         environment_id, image, ctx = image, str(ctx), environment_id
@@ -105,7 +104,6 @@ async def tag_image(
     tag: str,
     ctx: Context = None,
     environment_id: int | None = None,
-    *args: Any,
 ) -> dict:
     if isinstance(image_id, int):
         environment_id, image_id, repo, tag, ctx = image_id, str(repo), tag, ctx, environment_id
@@ -124,7 +122,6 @@ async def push_image(
     environment_id: int | None = None,
     image_name: str | None = None,
     new_tag: str | None = None,
-    *args: Any,
 ) -> dict:
     if isinstance(image_id, int):
         environment_id, image_id, registry_id, ctx = image_id, str(registry_id), ctx, environment_id

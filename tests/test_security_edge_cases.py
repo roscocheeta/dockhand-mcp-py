@@ -301,3 +301,41 @@ class TestSecurityHardening:
             )
             res = await list_config_sets(mock_ctx)
             assert res[0]["envVars"][0]["value"] == "***REDACTED***"
+
+    async def test_no_registered_tool_exposes_phantom_args_parameter(self, mock_client):
+        from unittest.mock import MagicMock
+        import respx
+        from httpx import Response
+        from mcp.server.fastmcp import FastMCP
+        from dockhand_mcp.tools import register_all_tools
+
+        mcp = FastMCP("test-schema")
+        register_all_tools(mcp, read_only=False)
+        tools = mcp._tool_manager._tools
+        assert len(tools) == 182
+
+        bad_required = [
+            name for name, tool in tools.items()
+            if "args" in tool.parameters.get("required", [])
+        ]
+        bad_properties = [
+            name for name, tool in tools.items()
+            if "args" in tool.parameters.get("properties", {})
+        ]
+        assert bad_required == [], f"Tools with phantom required 'args': {bad_required}"
+        assert bad_properties == [], f"Tools with phantom 'args' property: {bad_properties}"
+
+        # Smoke-test calling a previously affected tool via FastMCP's Pydantic arg validator
+        logs_tool = mcp._tool_manager.get_tool("get_container_logs")
+        assert logs_tool is not None
+        mock_ctx = MagicMock()
+        mock_ctx.request_context.lifespan_context = {"dockhand": mock_client}
+        with respx.mock:
+            respx.get(respx.patterns.M("http://dockhand.test/api/containers/c1/logs")).mock(
+                return_value=Response(200, json={"logs": "ok\n"})
+            )
+            validated = logs_tool.fn_metadata.arg_model.model_validate(
+                {"container_id": "c1", "environment_id": 1, "tail": 5}
+            )
+            out = await logs_tool.fn(**validated.model_dump(), ctx=mock_ctx)
+            assert out == "ok\n"
