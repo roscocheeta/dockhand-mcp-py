@@ -33,7 +33,7 @@ async def delete_tag(tag_id: int, ctx: Context = None) -> dict:
     client = ctx.request_context.lifespan_context['dockhand']
     return await client.delete(f'/api/tags/{encode_path(str(tag_id))}')
 
-async def get_stack_tags(name: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list[int]:
+async def get_stack_tags(name: str, ctx: Context = None, environment_id: int | None = None) -> list[int]:
     if isinstance(name, int):
         environment_id, name, ctx = name, str(ctx), environment_id
     """Get the tag IDs assigned to a stack."""
@@ -44,7 +44,7 @@ async def get_stack_tags(name: str, ctx: Context = None, environment_id: int | N
     )
     return data.get('tagIds', [])
 
-async def set_stack_tags(name: str, tag_ids: list[int] = None, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list[int]:
+async def set_stack_tags(name: str, tag_ids: list[int] = None, ctx: Context = None, environment_id: int | None = None) -> list[int]:
     if isinstance(name, int):
         environment_id, name, tag_ids, ctx = name, str(tag_ids), ctx, environment_id
     """Replace the tag IDs assigned to a stack."""

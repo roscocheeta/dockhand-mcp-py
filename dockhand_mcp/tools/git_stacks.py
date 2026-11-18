@@ -93,7 +93,6 @@ async def deploy_git_stack(
     pull_base: bool | None = None,
     no_cache: bool | None = None,
     force_recreate: bool | None = None,
-    *args: Any,
 ) -> dict:
     """Deploy a Git stack by numeric ID or stack name. Uses SSE streaming.
 
@@ -138,7 +137,6 @@ async def sync_git_stack(
     pull_base: bool | None = None,
     no_cache: bool | None = None,
     force_recreate: bool | None = None,
-    *args: Any,
 ) -> dict:
     """Sync a Git stack with its remote repository by numeric ID or stack name.
 
@@ -192,7 +190,6 @@ async def sync_and_deploy_git_stack(
     pull_base: bool | None = None,
     no_cache: bool | None = None,
     force_recreate: bool | None = None,
-    *args: Any,
 ) -> dict:
     """Atomically sync a Git stack by numeric ID or name with its remote repository and immediately deploy it."""
     return await sync_git_stack(
@@ -299,7 +296,6 @@ async def delete_git_stack(stack_id: int | str, ctx: Context = None, force: bool
 async def convert_git_stack_to_local(
     stack_id: int | str,
     ctx: Context = None,
-    *args: Any,
 ) -> dict:
     """Convert a Git-managed Docker Compose stack back to local management without recreating it.
 

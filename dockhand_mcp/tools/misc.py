@@ -289,7 +289,7 @@ async def get_language_preference(ctx: Context = None) -> dict:
 
 VALID_LOCALE_RE = re.compile(r"^[a-zA-Z]{2}(?:-[a-zA-Z0-9]{2,4})?$")
 
-async def set_language_preference(ctx: Context = None, language: str | None = None, *args: Any) -> dict:
+async def set_language_preference(ctx: Context = None, language: str | None = None) -> dict:
     """Set the interface language preference on the server (locale code, or None to follow browser).
 
     Supported locales include:
@@ -306,7 +306,7 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
     if isinstance(ctx, str) or (ctx is not None and not hasattr(ctx, "request_context")):
         language, ctx = ctx, language
     elif hasattr(language, "request_context"):
-        ctx, language = language, (args[0] if args else None)
+        ctx, language = language, None
 
     if language is not None:
         clean_lang = language.strip()
