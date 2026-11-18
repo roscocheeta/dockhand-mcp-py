@@ -37,6 +37,8 @@ async def list_volumes(
     volumes = await client.get("/api/volumes", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(volumes, dict) and "Volumes" in volumes:
         vol_list = volumes["Volumes"]
+        if vol_list is None:
+            vol_list = []
         if isinstance(vol_list, list):
             items = [_compact_volume(v) for v in vol_list]
             if search:

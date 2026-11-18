@@ -69,6 +69,7 @@ async def list_stacks(
         if search:
             search_pat = search.strip().lower()
             items = [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
+        items.sort(key=lambda s: ((s.get("Name") or "").lower(), str(s.get("Id") or "")))
         return paginate_items(items, limit=limit, offset=offset)
     return stacks
 

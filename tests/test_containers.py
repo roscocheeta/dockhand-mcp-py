@@ -698,7 +698,7 @@ async def test_list_containers_pagination(mock_client, mock_ctx):
 
     payload = [
         {"id": f"c{i:012d}", "Names": [f"/svc-{i}"], "Image": "nginx:alpine", "State": "running", "Status": "Up"}
-        for i in range(5)
+        for i in reversed(range(5))
     ]
     with respx.mock:
         respx.get("http://dockhand.test/api/containers?env=1").mock(
