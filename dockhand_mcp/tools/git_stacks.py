@@ -7,6 +7,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
 from dockhand_mcp.utils import (
     encode_path,
+    paginate_items,
     redact_sensitive_dict,
     redact_url_credentials,
     strip_nulls,
@@ -49,23 +50,31 @@ def _compact_sync_result(res: dict) -> dict:
     return compact
 
 
-async def list_git_stacks(ctx: Context = None, search: str | None = None) -> list:
+async def list_git_stacks(
+    ctx: Context = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
     """List all Git-backed stacks.
 
     Args:
         ctx: FastMCP Context.
         search: Optional stack name filter supporting wildcards ('*' and '?'), e.g. 'prod-*'.
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
     """
     if hasattr(ctx, "request_context") is False and isinstance(ctx, str):
         search, ctx = ctx, None
     client = ctx.request_context.lifespan_context["dockhand"]
     stacks = await client.get("/api/git/stacks")
     if isinstance(stacks, list):
-        items = [_compact_git_stack(s) for s in stacks]
+        ordered = sorted(stacks, key=lambda s: str(s.get("Id") or s.get("id") or ""))
+        items = [_compact_git_stack(s) for s in ordered]
         if search:
             search_pat = search.strip().lower()
-            return [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
-        return items
+            items = [s for s in items if fnmatch.fnmatchcase((s.get("Name") or "").lower(), search_pat)]
+        return paginate_items(items, limit=limit, offset=offset)
     return stacks
 
 async def get_git_stack(stack_id: int | str, ctx: Context = None) -> dict:

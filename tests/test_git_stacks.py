@@ -435,3 +435,18 @@ async def test_convert_git_stack_to_local(mock_client):
         )
         res_name = await convert_git_stack_to_local("radarr", mock_ctx)
         assert res_name["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_git_stacks_pagination(mock_client):
+    from dockhand_mcp.tools.git_stacks import list_git_stacks
+    mock_ctx = MockContext(mock_client)
+    payload = [{"id": i, "stackName": f"git-{i}", "url": "https://github.com/org/repo", "syncStatus": "synced"} for i in reversed(range(4))]
+    with respx.mock:
+        respx.get("http://dockhand.test/api/git/stacks").mock(
+            return_value=Response(200, json=payload)
+        )
+        res = await list_git_stacks(ctx=mock_ctx, search="git-*", limit=2, offset=1)
+        assert res["total"] == 4
+        assert res["hasMore"] is True
+        assert [s["Name"] for s in res["items"]] == ["git-1", "git-2"]

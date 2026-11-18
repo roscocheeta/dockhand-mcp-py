@@ -6,7 +6,16 @@ import fnmatch
 import json
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, truncate_id, clean_container_inspect, compact_container_inspect, redact_env_text, parse_since_to_epoch
+from dockhand_mcp.utils import (
+    encode_path,
+    truncate_id,
+    clean_container_inspect,
+    compact_container_inspect,
+    redact_env_text,
+    parse_since_to_epoch,
+    paginate_items,
+    parse_memory_bytes,
+)
 
 
 def _compact_container(c: dict) -> dict:
@@ -36,7 +45,9 @@ async def list_containers(
     ctx: Context = None,
     status: str | None = None,
     search: str | None = None,
-) -> list:
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
     """List all containers in a Dockhand environment.
 
     Args:
@@ -44,12 +55,21 @@ async def list_containers(
         ctx: FastMCP Context.
         status: Optional state filter (e.g. 'running', 'exited').
         search: Optional container name, display name, or ID filter supporting wildcards ('*' and '?'), e.g. 'web-*' or '*redis*'.
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
     """
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     containers = await client.get("/api/containers", params={"env": env_id})
     if isinstance(containers, list):
-        items = [_compact_container(c) for c in containers]
+        ordered = sorted(
+            containers,
+            key=lambda c: (
+                str(c.get("Name") or c.get("name") or (c.get("Names", [""])[0] if c.get("Names") else "")).lower(),
+                str(c.get("Id") or c.get("id") or ""),
+            ),
+        )
+        items = [_compact_container(c) for c in ordered]
         if status:
             s_clean = status.strip().lower()
             items = [c for c in items if (c.get("State") or "").lower() == s_clean]
@@ -61,7 +81,7 @@ async def list_containers(
                 or fnmatch.fnmatchcase((c.get("DisplayName") or "").lower(), search_pat)
                 or fnmatch.fnmatchcase((c.get("Id") or "").lower(), search_pat)
             ]
-        return items
+        return paginate_items(items, limit=limit, offset=offset)
     return containers
 
 def _normalize_container_args(env: Any, cid: Any, ctx: Any) -> tuple[int | None, str, Any]:
@@ -377,6 +397,114 @@ async def update_container(
         f"/api/containers/{encode_path(container_id)}/update", 
         json=body, 
         params={"env": await client.resolve_environment_id(environment_id)}
+    )
+
+
+_VALID_RESTART_POLICIES = frozenset({"no", "always", "unless-stopped", "on-failure"})
+
+
+async def update_container_runtime(
+    container_id: str,
+    ctx: Context = None,
+    environment_id: int | None = None,
+    cpus: float | None = None,
+    memory: int | str | None = None,
+    memory_reservation: int | str | None = None,
+    memory_swap: int | str | None = None,
+    restart_policy: str | None = None,
+    restart_max_retries: int | None = None,
+    cpu_shares: int | None = None,
+    cpu_period: int | None = None,
+    cpu_quota: int | None = None,
+    cpuset_cpus: str | None = None,
+    cpuset_mems: str | None = None,
+    pids_limit: int | None = None,
+    blkio_weight: int | None = None,
+) -> dict:
+    """Update a container's CPU, memory, PIDs, blkio, or restart policy in-place without recreating it.
+
+    Calls Dockhand's ``POST /api/containers/{id}/update-runtime`` endpoint, which
+    applies Docker live-update fields (no container restart or recreation).
+    Note: Docker Engine ignores zero values for CPU and memory limits, so positive
+    values are required for those fields. Use ``memory_swap='-1'`` for unlimited swap
+    or ``pids_limit=0`` / ``pids_limit=-1`` to disable PIDs limits where supported.
+
+    Args:
+        container_id: Container name or ID.
+        ctx: FastMCP Context.
+        environment_id: Environment ID (optional, auto-resolves to default).
+        cpus: CPU limit in cores (> 0, e.g. 1.5 or 0.5; converted to NanoCpus).
+        memory: Hard memory limit in bytes (> 0) or size string (e.g. '512m', '2g').
+        memory_reservation: Soft memory limit in bytes (> 0) or size string (e.g. '256m').
+        memory_swap: Total memory + swap limit in bytes (> 0), size string, or '-1' for unlimited.
+        restart_policy: Restart policy ('no', 'always', 'unless-stopped', 'on-failure').
+        restart_max_retries: Maximum retry count (only valid when restart_policy is 'on-failure').
+        cpu_shares: Relative CPU weight (integer > 0).
+        cpu_period: CPU CFS period in microseconds (integer > 0; cannot be combined with cpus).
+        cpu_quota: CPU CFS quota in microseconds (integer > 0; cannot be combined with cpus).
+        cpuset_cpus: CPUs in which to allow execution (e.g. '0-3', '0,1').
+        cpuset_mems: Memory nodes in which to allow execution (e.g. '0-1').
+        pids_limit: Maximum number of PIDs (0 or -1 for unlimited).
+        blkio_weight: Block IO weight (10-1000).
+    """
+    if isinstance(container_id, int):
+        environment_id, container_id, ctx = container_id, str(ctx), environment_id
+
+    if cpus is not None and (cpu_period is not None or cpu_quota is not None):
+        raise ValueError("Cannot combine 'cpus' (NanoCpus) with 'cpu_period' or 'cpu_quota'.")
+
+    if restart_max_retries is not None and (restart_policy is None or restart_policy.strip().lower() != "on-failure"):
+        raise ValueError("'restart_max_retries' requires restart_policy='on-failure'.")
+
+    body: dict[str, Any] = {}
+    if cpus is not None:
+        if isinstance(cpus, bool) or cpus <= 0:
+            raise ValueError(f"Invalid 'cpus' value {cpus!r}: must be > 0.")
+        body["NanoCpus"] = int(round(cpus * 1_000_000_000))
+    if memory is not None:
+        body["Memory"] = parse_memory_bytes(memory, allow_zero=False)
+    if memory_reservation is not None:
+        body["MemoryReservation"] = parse_memory_bytes(memory_reservation, allow_zero=False)
+    if memory_swap is not None:
+        body["MemorySwap"] = parse_memory_bytes(memory_swap, allow_negative_one=True, allow_zero=False)
+    if restart_policy is not None:
+        policy_name = restart_policy.strip().lower()
+        if policy_name not in _VALID_RESTART_POLICIES:
+            raise ValueError(
+                f"Invalid restart_policy {restart_policy!r}; expected one of {sorted(_VALID_RESTART_POLICIES)}."
+            )
+        rp: dict[str, Any] = {"Name": policy_name}
+        if policy_name == "on-failure" and restart_max_retries is not None:
+            if isinstance(restart_max_retries, bool) or restart_max_retries < 0:
+                raise ValueError(f"Invalid restart_max_retries {restart_max_retries!r}: must be >= 0.")
+            rp["MaximumRetryCount"] = restart_max_retries
+        body["RestartPolicy"] = rp
+    for field_name, key_name in (
+        (cpu_shares, "CpuShares"),
+        (cpu_period, "CpuPeriod"),
+        (cpu_quota, "CpuQuota"),
+    ):
+        if field_name is not None:
+            if isinstance(field_name, bool) or field_name <= 0:
+                raise ValueError(f"Invalid '{key_name}' value {field_name!r}: must be > 0.")
+            body[key_name] = field_name
+    if cpuset_cpus is not None:
+        body["CpusetCpus"] = cpuset_cpus
+    if cpuset_mems is not None:
+        body["CpusetMems"] = cpuset_mems
+    if pids_limit is not None:
+        body["PidsLimit"] = pids_limit
+    if blkio_weight is not None:
+        body["BlkioWeight"] = blkio_weight
+
+    if not body:
+        raise ValueError("At least one runtime update field (e.g. cpus, memory, restart_policy, pids_limit) must be provided.")
+
+    client = ctx.request_context.lifespan_context["dockhand"]
+    return await client.post(
+        f"/api/containers/{encode_path(container_id)}/update-runtime",
+        json=body,
+        params={"env": await client.resolve_environment_id(environment_id)},
     )
 
 async def exec_container(
@@ -728,6 +856,7 @@ def register_container_tools(mcp: FastMCP) -> None:
     mcp.add_tool(rename_container)
     mcp.add_tool(create_container)
     mcp.add_tool(update_container)
+    mcp.add_tool(update_container_runtime)
     mcp.add_tool(exec_container)
     mcp.add_tool(run_container_exec)
     mcp.add_tool(get_container_compose)

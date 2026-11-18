@@ -10,8 +10,8 @@ body:
     id: version
     attributes:
       label: Dockhand MCP Server Version
-      description: What version of dockhand-mcp are you using? (e.g., v0.7.3)
-      placeholder: v0.7.3
+      description: What version of dockhand-mcp are you using? (e.g., v0.8.0)
+      placeholder: v0.8.0
     validations:
       required: true
   - type: input

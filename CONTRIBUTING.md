@@ -84,7 +84,7 @@ Before opening a pull request or submitting changes, ensure your branch passes a
 | Verification Gate | Command | Passing Standard |
 | :--- | :--- | :--- |
 | **Unit Tests & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain >90% line coverage across all modules. |
-| **Dependency Security Audit** | `uv tool run pip-audit` | Zero known vulnerabilities (moderate+ severity). |
+| **Dependency Security Audit** | `uv export --locked --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt` | Zero known vulnerabilities (moderate+ severity). |
 | **Static Application Security (SAST)** | `uv tool run bandit -r dockhand_mcp -ll` | Zero medium or high severity security findings. |
 | **Build & Packaging Verification** | `uv build` | Successfully builds `.tar.gz` sdist and `.whl` wheel without hatchling errors. |
 | **Syntax Validation** | `uv run --no-sync python -m py_compile dockhand_mcp/**/*.py` | Zero syntax or indentation errors. |
@@ -120,8 +120,8 @@ All tool implementations and refactors must strictly uphold these architectural 
 - Strict Read-Only Mode (`DOCKHAND_READ_ONLY=true`) must immediately reject state-mutating requests before network transmission.
 
 ### 5. Input Validation & Path Sanitization
-- Path parameters (`container_id`, `stack_name`, `image_id`) must pass through `encode_path()` (`urllib.parse.quote(safe="")`) to prevent path traversal.
-- External URLs must use `http` or `https` schemes only.
+- Path parameters (`container_id`, `stack_name`, `image_id`) must pass through `encode_path()` (`urllib.parse.quote(safe="")`, which also rejects empty strings and `.` / `..` dot-segments) to prevent path traversal.
+- External webhook/base URLs must use `http` or `https` schemes only, and Git repository URLs must pass `validate_repo_url()` (`http://`, `https://`, `ssh://`, or `git@host:path`).
 - In `run_container_exec`, execute shell strings safely via `["/bin/sh", "-c", cmd]`.
 
 ---
@@ -143,7 +143,8 @@ When submitting a pull request to `dev`:
 - [ ] Unit tests are added or updated in `tests/` covering new behavior or bug fixes.
 - [ ] Code coverage remains above 90%.
 - [ ] All local quality gates pass (`pytest`, `pip-audit`, `bandit`, `uv build`).
-- [ ] All CI/CD checks (test matrix, Gitleaks, pip-audit, Bandit SAST) report green before merging.
+- [ ] All CI/CD checks (test matrix, CodeQL, Gitleaks, pip-audit, Bandit SAST) report green before merging.
+- [ ] Review feedback from automated GitHub PR reviews (**CodeRabbit** / **CodeQL**) is addressed before merging *(contributors do not need to install or run CodeRabbit locally)*.
 - [ ] No secrets, private IPs, or credentials are committed.
 - [ ] Documentation (`README.md` or docstrings) is updated if adding or modifying MCP tools.
 

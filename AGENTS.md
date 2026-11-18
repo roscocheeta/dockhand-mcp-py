@@ -45,7 +45,8 @@ gitGraph
    - Working branches must use standard prefixes: `feat/*`, `fix/*`, `docs/*`, `chore/*`.
    - Work accumulates on `dev` across multiple PRs until a release milestone is reached.
 3. **Hard Quality Gate on `dev` Pull Requests**:
-   - Every PR into `dev` must pass all CI/CD matrix tests, security audits (Gitleaks, pip-audit, Bandit SAST), and local quality gates.
+   - Every PR into `dev` must pass all CI/CD matrix tests, CodeQL, security audits (Gitleaks, pip-audit, Bandit SAST), and local quality gates.
+   - Check and address automated **CodeRabbit** (`coderabbitai`) PR review feedback on GitHub (or run `coderabbit review --agent --base dev` once per finished batch of fixes to conserve hourly quota; skip re-running CodeRabbit after clean branch merges).
    - **NEVER merge into `dev` while checks are in-progress or failing**: You must watch checks with `gh pr checks <PR> --watch` and verify all jobs report green (`exit code 0`) before merging.
    - PRs into `dev` are squash-merged to preserve a clean, atomic linear commit history.
 4. **Strict Release Promotion (`dev` -> `master`)**:
@@ -69,10 +70,11 @@ Before submitting any Pull Request or committing changes, run the following veri
 | Step | Command | Standard |
 | :--- | :--- | :--- |
 | **Test Suite & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain >90% line coverage across all modules. |
-| **Dependency Security Audit** | `uv tool run pip-audit` | Zero known vulnerabilities (moderate+ severity). |
+| **Dependency Security Audit** | `uv export --locked --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt` | Zero known vulnerabilities (moderate+ severity). |
 | **Static Application Security (SAST)** | `uv tool run bandit -r dockhand_mcp -ll` | Zero medium or high severity security findings. |
 | **Build & Packaging Verification** | `uv build` | Successfully builds `.tar.gz` sdist and `.whl` wheel without hatchling errors. |
 | **Syntax & Type Validation** | `uv run --no-sync python -m py_compile dockhand_mcp/**/*.py` | Zero syntax or indentation errors. |
+| **Local AI Review (Optional/Pre-PR)** | `coderabbit review --agent --base dev` | Address any critical or major findings before pushing/opening PRs. |
 
 > [!IMPORTANT]
 > **Windows Lock Contention**: When running the MCP server locally (e.g. in Claude Desktop or background daemon), `.venv\Scripts\dockhand-mcp.exe` may be file-locked. Always pass `--no-sync` (`uv run --no-sync pytest`) to execute python commands without attempting to rewrite active executable binaries.
@@ -139,12 +141,12 @@ When preparing and publishing a new release:
    git checkout -b chore/prepare-release-vX.Y.Z
    ```
 2. **Version & Documentation Bump**:
-   - Update `version = "X.Y.Z"` in `pyproject.toml`.
+   - Update `version = "X.Y.Z"` in `pyproject.toml` and `uv.lock`, and update the `description` example and `placeholder` under `id: version` in `.github/ISSUE_TEMPLATE/bug_report.yml` (leaving the upstream Dockhand version field unchanged).
    - Update `README.md` features, tool tables, and roadmap.
 3. **Execute Local Quality Gates**:
    ```bash
    uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing
-   uv tool run pip-audit
+   uv export --locked --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt
    uv tool run bandit -r dockhand_mcp -ll
    uv build
    ```
