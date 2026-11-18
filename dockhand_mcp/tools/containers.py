@@ -413,47 +413,53 @@ async def update_container_runtime(
     cpuset_mems: str | None = None,
     pids_limit: int | None = None,
     blkio_weight: int | None = None,
-    *args: Any,
 ) -> dict:
     """Update a container's CPU, memory, PIDs, blkio, or restart policy in-place without recreating it.
 
     Calls Dockhand's ``POST /api/containers/{id}/update-runtime`` endpoint, which
-    applies Docker live-update fields (no container restart or recreation). Pass ``0``
-    for ``cpus``, ``memory``, ``memory_reservation``, ``cpu_shares``, ``cpu_period``,
-    or ``cpu_quota`` to clear an existing limit.
+    applies Docker live-update fields (no container restart or recreation).
+    Note: Docker Engine ignores zero values for CPU and memory limits, so positive
+    values are required for those fields. Use ``memory_swap='-1'`` for unlimited swap
+    or ``pids_limit=0`` / ``pids_limit=-1`` to disable PIDs limits where supported.
 
     Args:
         container_id: Container name or ID.
         ctx: FastMCP Context.
         environment_id: Environment ID (optional, auto-resolves to default).
-        cpus: CPU limit in cores (e.g. 1.5 or 0.5; converted to NanoCpus).
-        memory: Hard memory limit in bytes or size string (e.g. '512m', '2g', or 0 to clear).
-        memory_reservation: Soft memory limit in bytes or size string (e.g. '256m').
-        memory_swap: Total memory + swap limit in bytes or size string ('-1' for unlimited).
+        cpus: CPU limit in cores (> 0, e.g. 1.5 or 0.5; converted to NanoCpus).
+        memory: Hard memory limit in bytes (> 0) or size string (e.g. '512m', '2g').
+        memory_reservation: Soft memory limit in bytes (> 0) or size string (e.g. '256m').
+        memory_swap: Total memory + swap limit in bytes (> 0), size string, or '-1' for unlimited.
         restart_policy: Restart policy ('no', 'always', 'unless-stopped', 'on-failure').
-        restart_max_retries: Maximum retry count when restart_policy is 'on-failure'.
-        cpu_shares: Relative CPU weight (integer >= 0).
-        cpu_period: CPU CFS period in microseconds (integer >= 0).
-        cpu_quota: CPU CFS quota in microseconds (integer >= 0).
+        restart_max_retries: Maximum retry count (only valid when restart_policy is 'on-failure').
+        cpu_shares: Relative CPU weight (integer > 0).
+        cpu_period: CPU CFS period in microseconds (integer > 0; cannot be combined with cpus).
+        cpu_quota: CPU CFS quota in microseconds (integer > 0; cannot be combined with cpus).
         cpuset_cpus: CPUs in which to allow execution (e.g. '0-3', '0,1').
         cpuset_mems: Memory nodes in which to allow execution (e.g. '0-1').
-        pids_limit: Maximum number of PIDs (-1 for unlimited, 0 to clear).
+        pids_limit: Maximum number of PIDs (0 or -1 for unlimited).
         blkio_weight: Block IO weight (10-1000).
     """
     if isinstance(container_id, int):
         environment_id, container_id, ctx = container_id, str(ctx), environment_id
 
+    if cpus is not None and (cpu_period is not None or cpu_quota is not None):
+        raise ValueError("Cannot combine 'cpus' (NanoCpus) with 'cpu_period' or 'cpu_quota'.")
+
+    if restart_max_retries is not None and (restart_policy is None or restart_policy.strip().lower() != "on-failure"):
+        raise ValueError("'restart_max_retries' requires restart_policy='on-failure'.")
+
     body: dict[str, Any] = {}
     if cpus is not None:
-        if isinstance(cpus, bool) or cpus < 0:
-            raise ValueError(f"Invalid 'cpus' value {cpus!r}: must be >= 0.")
+        if isinstance(cpus, bool) or cpus <= 0:
+            raise ValueError(f"Invalid 'cpus' value {cpus!r}: must be > 0.")
         body["NanoCpus"] = int(round(cpus * 1_000_000_000))
     if memory is not None:
-        body["Memory"] = parse_memory_bytes(memory)
+        body["Memory"] = parse_memory_bytes(memory, allow_zero=False)
     if memory_reservation is not None:
-        body["MemoryReservation"] = parse_memory_bytes(memory_reservation)
+        body["MemoryReservation"] = parse_memory_bytes(memory_reservation, allow_zero=False)
     if memory_swap is not None:
-        body["MemorySwap"] = parse_memory_bytes(memory_swap, allow_negative_one=True)
+        body["MemorySwap"] = parse_memory_bytes(memory_swap, allow_negative_one=True, allow_zero=False)
     if restart_policy is not None:
         policy_name = restart_policy.strip().lower()
         if policy_name not in _VALID_RESTART_POLICIES:
@@ -466,12 +472,15 @@ async def update_container_runtime(
                 raise ValueError(f"Invalid restart_max_retries {restart_max_retries!r}: must be >= 0.")
             rp["MaximumRetryCount"] = restart_max_retries
         body["RestartPolicy"] = rp
-    if cpu_shares is not None:
-        body["CpuShares"] = cpu_shares
-    if cpu_period is not None:
-        body["CpuPeriod"] = cpu_period
-    if cpu_quota is not None:
-        body["CpuQuota"] = cpu_quota
+    for field_name, key_name in (
+        (cpu_shares, "CpuShares"),
+        (cpu_period, "CpuPeriod"),
+        (cpu_quota, "CpuQuota"),
+    ):
+        if field_name is not None:
+            if isinstance(field_name, bool) or field_name <= 0:
+                raise ValueError(f"Invalid '{key_name}' value {field_name!r}: must be > 0.")
+            body[key_name] = field_name
     if cpuset_cpus is not None:
         body["CpusetCpus"] = cpuset_cpus
     if cpuset_mems is not None:

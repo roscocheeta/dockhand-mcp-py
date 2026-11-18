@@ -107,7 +107,7 @@ async def test_list_networks_search_and_pagination(mock_client):
     mock_ctx = MockContext(mock_client)
     nets_payload = [
         {"Id": f"n{i:012d}", "Name": f"net-{i}", "Driver": "bridge", "Scope": "local"}
-        for i in range(4)
+        for i in reversed(range(4))
     ]
     with respx.mock:
         respx.get("http://dockhand.test/api/networks?env=1").mock(

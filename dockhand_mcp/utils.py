@@ -5,6 +5,7 @@ Utility functions for the Dockhand MCP server.
 import re
 import time
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import quote, urlparse
 from typing import Any
 
@@ -498,7 +499,7 @@ def paginate_items(
 
 _MEMORY_RE = re.compile(
     r"^\s*(\d+(?:\.\d+)?)\s*(b|k|kb|ki|kib|m|mb|mi|mib|g|gb|gi|gib|t|tb|ti|tib)?\s*$",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _MEMORY_MULTIPLIERS = {
     "": 1,
@@ -520,15 +521,26 @@ _MEMORY_MULTIPLIERS = {
     "ti": 1024**4,
     "tib": 1024**4,
 }
+_INT64_MAX = (1 << 63) - 1
 
 
-def parse_memory_bytes(value: int | str, allow_negative_one: bool = False) -> int:
+def parse_memory_bytes(
+    value: int | str,
+    allow_negative_one: bool = False,
+    allow_zero: bool = True,
+) -> int:
     """Parse an integer byte count or human-readable memory size (e.g. '512m', '2g') into bytes."""
     if isinstance(value, bool):
         raise ValueError(f"Invalid memory value {value!r}: expected int or size string (e.g. '512m', '2g').")
     if isinstance(value, int):
-        if value < 0 and not (allow_negative_one and value == -1):
-            raise ValueError(f"Invalid memory value {value}: must be >= 0" + (" (or -1 for unlimited)." if allow_negative_one else "."))
+        if allow_negative_one and value == -1:
+            return -1
+        min_val = 0 if allow_zero else 1
+        if value < min_val or value > _INT64_MAX:
+            raise ValueError(
+                f"Invalid memory value {value}: must be between {min_val} and {_INT64_MAX}"
+                + (" (or -1 for unlimited)." if allow_negative_one else ".")
+            )
         return value
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Invalid memory value {value!r}: expected int or size string (e.g. '512m', '2g').")
@@ -540,8 +552,17 @@ def parse_memory_bytes(value: int | str, allow_negative_one: bool = False) -> in
     m = _MEMORY_RE.match(cleaned)
     if not m:
         raise ValueError(
-            f"Invalid memory value {value!r}: expected bytes or size string like '512m', '2g', or '0' to clear."
+            f"Invalid memory value {value!r}: expected positive bytes or size string like '512m' or '2g'."
         )
-    num = float(m.group(1))
-    unit = (m.group(2) or "").lower()
-    return int(round(num * _MEMORY_MULTIPLIERS[unit]))
+    try:
+        scaled = Decimal(m.group(1)) * _MEMORY_MULTIPLIERS[(m.group(2) or "").lower()]
+        result = int(scaled.to_integral_value(rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, OverflowError) as exc:
+        raise ValueError(f"Invalid memory value {value!r}: {exc}") from exc
+
+    min_val = 0 if allow_zero else 1
+    if result < min_val or result > _INT64_MAX:
+        raise ValueError(
+            f"Invalid memory value {value!r}: resolved byte count {result} must be between {min_val} and {_INT64_MAX}."
+        )
+    return result

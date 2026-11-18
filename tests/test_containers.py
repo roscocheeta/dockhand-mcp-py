@@ -715,18 +715,32 @@ async def test_list_containers_pagination(mock_client, mock_ctx):
 @pytest.mark.asyncio
 async def test_update_container_runtime(mock_client, mock_ctx):
     import json
+    from mcp.server.fastmcp import FastMCP
     from dockhand_mcp.tools.containers import update_container_runtime
-    from dockhand_mcp.tools import get_tool_annotations
+    from dockhand_mcp.tools import get_tool_annotations, register_all_tools
 
     ann = get_tool_annotations("update_container_runtime")
     assert ann.readOnlyHint is False
-    assert ann.destructiveHint is False
+    assert ann.destructiveHint is True
+
+    # Verify FastMCP schema does not expose required *args and excludes tool in read-only mode
+    mcp = FastMCP("test-runtime")
+    register_all_tools(mcp, read_only=False)
+    rt_tool = mcp._tool_manager.get_tool("update_container_runtime")
+    assert rt_tool is not None
+    assert "args" not in rt_tool.parameters.get("properties", {})
+    assert rt_tool.parameters.get("required") == ["container_id"]
+
+    mcp_ro = FastMCP("test-runtime-ro")
+    register_all_tools(mcp_ro, read_only=True)
+    assert mcp_ro._tool_manager.get_tool("update_container_runtime") is None
 
     with respx.mock:
         route = respx.post("http://dockhand.test/api/containers/c1/update-runtime?env=1").mock(
             return_value=Response(200, json={"success": True, "warnings": ["Memory swap warning"]})
         )
 
+        # Case 1: NanoCpus + memory + restart policy + pids/blkio
         res = await update_container_runtime(
             container_id="c1",
             ctx=mock_ctx,
@@ -739,8 +753,6 @@ async def test_update_container_runtime(mock_client, mock_ctx):
             restart_max_retries=5,
             pids_limit=256,
             cpu_shares=512,
-            cpu_period=100000,
-            cpu_quota=50000,
             cpuset_cpus="0-1",
             cpuset_mems="0",
             blkio_weight=500,
@@ -754,8 +766,6 @@ async def test_update_container_runtime(mock_client, mock_ctx):
             "MemorySwap": -1,
             "RestartPolicy": {"Name": "on-failure", "MaximumRetryCount": 5},
             "CpuShares": 512,
-            "CpuPeriod": 100000,
-            "CpuQuota": 50000,
             "CpusetCpus": "0-1",
             "CpusetMems": "0",
             "PidsLimit": 256,
@@ -763,15 +773,55 @@ async def test_update_container_runtime(mock_client, mock_ctx):
         }
         assert res == {"success": True, "warnings": ["Memory swap warning"]}
 
+        # Case 2: CFS period + quota (without cpus)
+        res_cfs = await update_container_runtime(
+            container_id="c1",
+            ctx=mock_ctx,
+            environment_id=1,
+            cpu_period=100000,
+            cpu_quota=50000,
+        )
+        assert json.loads(route.calls.last.request.content) == {
+            "CpuPeriod": 100000,
+            "CpuQuota": 50000,
+        }
+        assert res_cfs["success"] is True
+
+        # Case 3: Call through registered FastMCP tool path
+        tool_result = await rt_tool.fn(container_id="c1", memory="512m", environment_id=1, ctx=mock_ctx)
+        assert tool_result["success"] is True
+
     # Validation checks
     with pytest.raises(ValueError, match="At least one runtime update field"):
         await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1)
 
+    with pytest.raises(ValueError, match="Cannot combine 'cpus'"):
+        await update_container_runtime(
+            container_id="c1", ctx=mock_ctx, environment_id=1, cpus=1.0, cpu_period=100000
+        )
+
+    with pytest.raises(ValueError, match="Cannot combine 'cpus'"):
+        await update_container_runtime(
+            container_id="c1", ctx=mock_ctx, environment_id=1, cpus=1.0, cpu_quota=50000
+        )
+
+    with pytest.raises(ValueError, match="requires restart_policy='on-failure'"):
+        await update_container_runtime(
+            container_id="c1", ctx=mock_ctx, environment_id=1, restart_max_retries=2, pids_limit=256
+        )
+
     with pytest.raises(ValueError, match="Invalid restart_policy"):
         await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, restart_policy="invalid")
 
-    with pytest.raises(ValueError, match="Invalid 'cpus'"):
-        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, cpus=-0.5)
+    for bad_cpus in (0, -0.5):
+        with pytest.raises(ValueError, match="Invalid 'cpus'"):
+            await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, cpus=bad_cpus)
+
+    with pytest.raises(ValueError, match="Invalid memory value"):
+        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, memory="0")
+
+    with pytest.raises(ValueError, match="Invalid 'CpuQuota'"):
+        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, cpu_quota=0)
 
     with pytest.raises(ValueError, match="Invalid restart_max_retries"):
         await update_container_runtime(

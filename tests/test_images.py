@@ -110,7 +110,7 @@ async def test_image_lifecycle_pull_tag_push_remove(mock_client, mock_ctx):
 async def test_list_images_search_and_pagination(mock_client, mock_ctx):
     mock_images = [
         {"Id": f"sha256:{i:012x}0000", "RepoTags": [f"app/img-{i}:latest"], "Size": 1000, "Created": 1700000000}
-        for i in range(4)
+        for i in reversed(range(4))
     ]
     with respx.mock:
         respx.get("http://dockhand.test/api/images?env=1").mock(

@@ -37,7 +37,11 @@ async def list_images(
     client = ctx.request_context.lifespan_context["dockhand"]
     images = await client.get("/api/images", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(images, list):
-        items = [_compact_image(i) for i in images]
+        ordered = sorted(
+            images,
+            key=lambda i: (-(i.get("Created") or i.get("created") or 0), str(i.get("Id") or i.get("id") or "")),
+        )
+        items = [_compact_image(i) for i in ordered]
         if search:
             pat = search.strip().lower()
             items = [

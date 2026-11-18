@@ -42,6 +42,7 @@ async def list_volumes(
             if search:
                 pat = search.strip().lower()
                 items = [v for v in items if fnmatch.fnmatchcase((v.get("Name") or "").lower(), pat)]
+            items.sort(key=lambda v: (v.get("Name") or "").lower())
             paginated = paginate_items(items, limit=limit, offset=offset)
             if isinstance(paginated, dict):
                 return paginated
@@ -52,6 +53,7 @@ async def list_volumes(
         if search:
             pat = search.strip().lower()
             items = [v for v in items if fnmatch.fnmatchcase((v.get("Name") or "").lower(), pat)]
+        items.sort(key=lambda v: (v.get("Name") or "").lower())
         return paginate_items(items, limit=limit, offset=offset)
     return volumes
 

@@ -113,7 +113,7 @@ async def test_list_volumes_search_and_pagination(mock_client):
     vols_payload = {
         "Volumes": [
             {"Name": f"data-{i}", "Driver": "local", "Mountpoint": f"/mnt/{i}"}
-            for i in range(4)
+            for i in reversed(range(4))
         ]
     }
     with respx.mock:

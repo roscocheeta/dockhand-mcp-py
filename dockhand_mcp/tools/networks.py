@@ -37,7 +37,8 @@ async def list_networks(
     client = ctx.request_context.lifespan_context["dockhand"]
     networks = await client.get("/api/networks", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(networks, list):
-        items = [_compact_network(n) for n in networks]
+        ordered = sorted(networks, key=lambda n: str(n.get("Id") or n.get("id") or ""))
+        items = [_compact_network(n) for n in ordered]
         if search:
             pat = search.strip().lower()
             items = [

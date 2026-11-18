@@ -197,7 +197,7 @@ We welcome contributions! Please review:
 - [ ] **PyPI Distribution**: Publish to PyPI to enable single-command instant execution via `uvx dockhand-mcp-py`.
 - [ ] **Automated Release Publishing**: Automated trusted publisher publishing to PyPI on GitHub release tags.
 - [x] **Container Runtime Updates**: In-place constraint updates (`update_container_runtime`: CPU, memory limits, PIDs, blkio, restart policies) without container recreation.
-- [x] **Result Pagination**: Optional `limit` and `offset` pagination (with `total` / `hasMore` envelope) for large environments with hundreds of containers, images, networks, volumes, or stacks.
+- [x] **Result Pagination**: Optional `limit` and `offset` pagination for large environments with hundreds of containers, images, networks, volumes, or stacks (pass `limit` to receive the `total` / `hasMore` envelope; `offset` alone preserves the existing list shape).
 - [x] **CodeQL Security Analysis**: Enabled CodeQL scanning on the public repository.
 
 ---

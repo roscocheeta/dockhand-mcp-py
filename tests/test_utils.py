@@ -276,7 +276,13 @@ class TestUtils:
         assert parse_memory_bytes("1tb") == 1024**4
         assert parse_memory_bytes(-1, allow_negative_one=True) == -1
         assert parse_memory_bytes("-1", allow_negative_one=True) == -1
+        assert parse_memory_bytes("9007199254740993") == 9007199254740993
+        assert parse_memory_bytes("536870912.500000001") == 536870913
 
-        for bad in (-1, -100, True, "", "abc", "512x"):
+        for bad in (-1, -100, True, "", "abc", "512x", "512Mıb", "999999999999999t"):
             with pytest.raises(ValueError, match="Invalid memory value"):
                 parse_memory_bytes(bad)  # type: ignore[arg-type]
+
+        for zero_val in (0, "0"):
+            with pytest.raises(ValueError, match="Invalid memory value"):
+                parse_memory_bytes(zero_val, allow_zero=False)

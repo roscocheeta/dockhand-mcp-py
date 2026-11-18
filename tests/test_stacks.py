@@ -538,14 +538,26 @@ async def test_convert_stack_to_git(mock_client, mock_ctx):
 
 @pytest.mark.asyncio
 async def test_list_stacks_pagination(mock_client):
+    from mcp.server.fastmcp import FastMCP
+    from dockhand_mcp.tools import register_all_tools
     from dockhand_mcp.tools.stacks import list_stacks
     mock_ctx = MockContext(mock_client)
+
+    mcp = FastMCP("test-stacks")
+    register_all_tools(mcp, read_only=True)
+    stacks_tool = mcp._tool_manager.get_tool("list_stacks")
+    assert stacks_tool is not None
+    assert "args" not in stacks_tool.parameters.get("properties", {})
+
     payload = [{"id": i, "name": f"stack-{i}", "status": "running", "environmentId": 1} for i in range(5)]
     with respx.mock:
         respx.get("http://dockhand.test/api/stacks?env=1").mock(
             return_value=Response(200, json=payload)
         )
-        res = await list_stacks(environment_id=1, ctx=mock_ctx, search="stack-*", limit=2, offset=2)
+        res = await stacks_tool.fn(environment_id=1, ctx=mock_ctx, search="stack-*", limit=2, offset=2)
         assert res["total"] == 5
         assert res["hasMore"] is True
         assert [s["Name"] for s in res["items"]] == ["stack-2", "stack-3"]
+
+        res_direct = await list_stacks(environment_id=1, ctx=mock_ctx, limit=2, offset=0)
+        assert [s["Name"] for s in res_direct["items"]] == ["stack-0", "stack-1"]

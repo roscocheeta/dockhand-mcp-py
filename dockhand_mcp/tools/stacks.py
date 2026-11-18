@@ -44,7 +44,6 @@ async def list_stacks(
     search: str | None = None,
     limit: int | None = None,
     offset: int = 0,
-    *args: Any,
 ) -> list | dict:
     """List all Docker Compose stacks in an environment.
 
