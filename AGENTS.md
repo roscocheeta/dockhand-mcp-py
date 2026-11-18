@@ -45,7 +45,8 @@ gitGraph
    - Working branches must use standard prefixes: `feat/*`, `fix/*`, `docs/*`, `chore/*`.
    - Work accumulates on `dev` across multiple PRs until a release milestone is reached.
 3. **Hard Quality Gate on `dev` Pull Requests**:
-   - Every PR into `dev` must pass all CI/CD matrix tests, security audits (Gitleaks, pip-audit, Bandit SAST), and local quality gates.
+   - Every PR into `dev` must pass all CI/CD matrix tests, CodeQL, security audits (Gitleaks, pip-audit, Bandit SAST), and local quality gates.
+   - Check and address automated **CodeRabbit** (`coderabbitai`) PR review feedback on GitHub (or run `coderabbit review --agent --base dev` once per finished batch of fixes to conserve hourly quota; skip re-running CodeRabbit after clean branch merges).
    - **NEVER merge into `dev` while checks are in-progress or failing**: You must watch checks with `gh pr checks <PR> --watch` and verify all jobs report green (`exit code 0`) before merging.
    - PRs into `dev` are squash-merged to preserve a clean, atomic linear commit history.
 4. **Strict Release Promotion (`dev` -> `master`)**:
