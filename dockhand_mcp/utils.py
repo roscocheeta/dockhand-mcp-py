@@ -465,3 +465,83 @@ def parse_since_to_epoch(since: str | int | None, now_epoch: int | None = None) 
         f"Invalid 'since' value '{since}'. Expected an integer Unix epoch (e.g. 1714400000), "
         "a relative duration (e.g. '30m', '1h', '24h', '7d'), or an ISO 8601 timestamp."
     )
+
+
+def paginate_items(
+    items: list[Any],
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[Any] | dict[str, Any]:
+    """Paginate a list of items using optional limit and offset.
+
+    When ``limit`` is None, returns a list (preserving backward compatibility).
+    When ``limit`` is provided, returns a pagination envelope containing
+    ``items``, ``total``, ``limit``, ``offset``, and ``hasMore``.
+    """
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError(f"Invalid 'offset' value {offset!r}: must be a non-negative integer.")
+    if limit is None:
+        return items[offset:] if offset > 0 else items
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise ValueError(f"Invalid 'limit' value {limit!r}: must be a positive integer (>= 1).")
+
+    total = len(items)
+    sliced = items[offset : offset + limit]
+    return {
+        "items": sliced,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "hasMore": (offset + len(sliced)) < total,
+    }
+
+
+_MEMORY_RE = re.compile(
+    r"^\s*(\d+(?:\.\d+)?)\s*(b|k|kb|ki|kib|m|mb|mi|mib|g|gb|gi|gib|t|tb|ti|tib)?\s*$",
+    re.IGNORECASE,
+)
+_MEMORY_MULTIPLIERS = {
+    "": 1,
+    "b": 1,
+    "k": 1024,
+    "kb": 1024,
+    "ki": 1024,
+    "kib": 1024,
+    "m": 1024**2,
+    "mb": 1024**2,
+    "mi": 1024**2,
+    "mib": 1024**2,
+    "g": 1024**3,
+    "gb": 1024**3,
+    "gi": 1024**3,
+    "gib": 1024**3,
+    "t": 1024**4,
+    "tb": 1024**4,
+    "ti": 1024**4,
+    "tib": 1024**4,
+}
+
+
+def parse_memory_bytes(value: int | str, allow_negative_one: bool = False) -> int:
+    """Parse an integer byte count or human-readable memory size (e.g. '512m', '2g') into bytes."""
+    if isinstance(value, bool):
+        raise ValueError(f"Invalid memory value {value!r}: expected int or size string (e.g. '512m', '2g').")
+    if isinstance(value, int):
+        if value < 0 and not (allow_negative_one and value == -1):
+            raise ValueError(f"Invalid memory value {value}: must be >= 0" + (" (or -1 for unlimited)." if allow_negative_one else "."))
+        return value
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Invalid memory value {value!r}: expected int or size string (e.g. '512m', '2g').")
+
+    cleaned = value.strip()
+    if allow_negative_one and cleaned == "-1":
+        return -1
+
+    m = _MEMORY_RE.match(cleaned)
+    if not m:
+        raise ValueError(
+            f"Invalid memory value {value!r}: expected bytes or size string like '512m', '2g', or '0' to clear."
+        )
+    num = float(m.group(1))
+    unit = (m.group(2) or "").lower()
+    return int(round(num * _MEMORY_MULTIPLIERS[unit]))

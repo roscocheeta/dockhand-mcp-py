@@ -104,3 +104,19 @@ async def test_image_lifecycle_pull_tag_push_remove(mock_client, mock_ctx):
         removed = await remove_image(environment_id=1, image_id="sha256:123", ctx=mock_ctx)
         assert rm_route.called
         assert removed["deleted"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_images_search_and_pagination(mock_client, mock_ctx):
+    mock_images = [
+        {"Id": f"sha256:{i:012x}0000", "RepoTags": [f"app/img-{i}:latest"], "Size": 1000, "Created": 1700000000}
+        for i in range(4)
+    ]
+    with respx.mock:
+        respx.get("http://dockhand.test/api/images?env=1").mock(
+            return_value=Response(200, json=mock_images)
+        )
+        res = await list_images(environment_id=1, ctx=mock_ctx, search="app/img-*", limit=2, offset=1)
+        assert res["total"] == 4
+        assert res["hasMore"] is True
+        assert [i["RepoTags"][0] for i in res["items"]] == ["app/img-1:latest", "app/img-2:latest"]

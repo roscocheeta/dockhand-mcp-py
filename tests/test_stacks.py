@@ -534,3 +534,18 @@ async def test_convert_stack_to_git(mock_client, mock_ctx):
         req_body_sse = json.loads(sse_attach_route.calls.last.request.content)
         assert req_body_sse["repositoryId"] == 5
         assert req_body_sse["deployNow"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_stacks_pagination(mock_client):
+    from dockhand_mcp.tools.stacks import list_stacks
+    mock_ctx = MockContext(mock_client)
+    payload = [{"id": i, "name": f"stack-{i}", "status": "running", "environmentId": 1} for i in range(5)]
+    with respx.mock:
+        respx.get("http://dockhand.test/api/stacks?env=1").mock(
+            return_value=Response(200, json=payload)
+        )
+        res = await list_stacks(environment_id=1, ctx=mock_ctx, search="stack-*", limit=2, offset=2)
+        assert res["total"] == 5
+        assert res["hasMore"] is True
+        assert [s["Name"] for s in res["items"]] == ["stack-2", "stack-3"]

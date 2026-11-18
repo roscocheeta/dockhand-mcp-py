@@ -118,22 +118,22 @@ In your extension's MCP settings configuration (`mcp_settings.json`):
 
 ---
 
-## Available Tools (181 Tools)
+## Available Tools (182 Tools)
 
 ### Containers & Scheduled Actions
-- **Inspection & State**: `list_containers` (supports `status="running"` and `search="*pattern*"` wildcard filters), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
+- **Inspection & State**: `list_containers` (supports `status="running"`, `search="*pattern*"` wildcard filters, and `limit`/`offset` pagination), `get_container` (with `compact=True`), `inspect_container`, `get_container_stats`, `get_container_top`, `get_container_compose`.
 - **Logs & Execution**: `get_container_logs` (supports `tail`, `timestamps=True`, `since="1h"`), `run_container_exec` (accepts shell strings or argument arrays), `exec_container`.
 - **File System Operations**: `list_container_files`, `get_container_file_content` (with truncation), `write_container_file_content`, `upload_container_file` (base64 encoded), `create_container_path`, `chown_container_file`, `delete_container_file`, `rename_container_file`.
-- **Lifecycle & Updates**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `create_container`, `update_container`, `rename_container`, `delete_container`, `check_container_updates`, `get_pending_container_updates` (supports `compact=True` token optimization; held update release notes surfaced during cooldown).
+- **Lifecycle & Updates**: `start_container`, `stop_container`, `restart_container`, `pause_container`, `unpause_container`, `create_container`, `update_container`, `update_container_runtime` (in-place CPU, memory, PIDs, blkio, and restart policy updates without recreation), `rename_container`, `delete_container`, `check_container_updates`, `get_pending_container_updates` (supports `compact=True` token optimization; held update release notes surfaced during cooldown).
 - **Scheduled Actions**: `get_container_scheduled_actions`, `set_container_scheduled_actions` (daily start/stop or cron).
 
 ### Stacks (Docker Compose)
-- **Deployment & Lifecycle**: `list_stacks` (supports `search="*pattern*"` wildcard filter), `create_stack`, `deploy_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `start_stack`, `stop_stack`, `restart_stack` (supports `mode="restart"|"ordered"|"recreate"`), `down_stack`, `delete_stack`, `adopt_stack`, `relocate_stack`, `convert_stack_to_git` (convert local stack to Git tracking).
+- **Deployment & Lifecycle**: `list_stacks` (supports `search="*pattern*"` wildcard filter and `limit`/`offset` pagination), `create_stack`, `deploy_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `start_stack`, `stop_stack`, `restart_stack` (supports `mode="restart"|"ordered"|"recreate"`), `down_stack`, `delete_stack`, `adopt_stack`, `relocate_stack`, `convert_stack_to_git` (convert local stack to Git tracking).
 - **Compose & Metrics**: `get_stack_compose`, `update_stack_compose` (supports `pull`, `build`, `force_recreate`), `get_stack_stats`, `get_stack_path_hints`, `get_stack_deploy_history`, `get_stack_deploy_log`.
 - **Environment Management**: `get_stack_env`, `get_stack_env_raw`, `update_stack_env`, `update_stack_env_raw`, `remove_stack_env_vars`, `check_stack_env_collisions`, `validate_stack_env`, `get_stack_delete_preview`.
 
 ### Git Stacks & GitOps
-- **Git Stacks**: `list_git_stacks` (supports `search="*pattern*"`), `get_git_stack`, `deploy_git_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `sync_git_stack` (with `deploy=True`), `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`, `convert_git_stack_to_local` (convert Git stack back to local management). *All stack tools accept human names (e.g. `"radarr"`).*
+- **Git Stacks**: `list_git_stacks` (supports `search="*pattern*"` and `limit`/`offset` pagination), `get_git_stack`, `deploy_git_stack` (supports `respect_pull_policy`, `pull_base`, `no_cache`), `sync_git_stack` (with `deploy=True`), `sync_and_deploy_git_stack`, `create_git_stack`, `update_git_stack`, `delete_git_stack`, `convert_git_stack_to_local` (convert Git stack back to local management). *All stack tools accept human names (e.g. `"radarr"`).*
 - **Git Repositories & Credentials**: `list_git_repositories`, `create_git_repository`, `update_git_repository`, `delete_git_repository`, `sync_git_repository`, `test_git_repository`, `trigger_git_webhook`, `list_git_credentials`, `create_git_credential`, `update_git_credential`, `delete_git_credential`.
 
 ### Environments & System
@@ -141,9 +141,9 @@ In your extension's MCP settings configuration (`mcp_settings.json`):
 - **System & Pruning**: `health_check`, `get_server_info`, `get_host_info`, `get_changelog`, `prune_all`, `prune_containers`, `prune_images`, `prune_networks`, `prune_volumes`.
 
 ### Networks, Volumes & Images
-- **Networks**: `list_networks`, `get_network`, `inspect_network`, `create_network`, `delete_network`.
-- **Volumes**: `list_volumes`, `get_volume`, `inspect_volume`, `create_volume`, `delete_volume`.
-- **Images**: `list_images`, `get_image_history`, `remove_image`, `pull_image` (with optional vulnerability scan), `tag_image`, `push_image`.
+- **Networks**: `list_networks` (supports `search` and `limit`/`offset` pagination), `get_network`, `inspect_network`, `create_network`, `delete_network`.
+- **Volumes**: `list_volumes` (supports `search` and `limit`/`offset` pagination), `get_volume`, `inspect_volume`, `create_volume`, `delete_volume`.
+- **Images**: `list_images` (supports `search` and `limit`/`offset` pagination), `get_image_history`, `remove_image`, `pull_image` (with optional vulnerability scan), `tag_image`, `push_image`.
 
 ### Security, Users & Preferences
 - **Security & Scans**: `list_vulnerabilities`, `get_vulnerability_count`, `scan_all_vulnerabilities`, `list_image_scans`, `scan_image` (Grype or Trivy).
@@ -196,8 +196,8 @@ We welcome contributions! Please review:
 
 - [ ] **PyPI Distribution**: Publish to PyPI to enable single-command instant execution via `uvx dockhand-mcp-py`.
 - [ ] **Automated Release Publishing**: Automated trusted publisher publishing to PyPI on GitHub release tags.
-- [ ] **Container Runtime Updates**: In-place constraint updates (CPU, memory limits, restart policies) without container recreation.
-- [ ] **Result Pagination**: Optional `limit` and `offset` pagination for large environments with hundreds of containers or images.
+- [x] **Container Runtime Updates**: In-place constraint updates (`update_container_runtime`: CPU, memory limits, PIDs, blkio, restart policies) without container recreation.
+- [x] **Result Pagination**: Optional `limit` and `offset` pagination (with `total` / `hasMore` envelope) for large environments with hundreds of containers, images, networks, volumes, or stacks.
 - [x] **CodeQL Security Analysis**: Enabled CodeQL scanning on the public repository.
 
 ---

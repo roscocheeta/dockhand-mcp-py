@@ -690,3 +690,90 @@ async def test_container_files_with_special_characters(mock_client, mock_ctx):
         res_delete = await delete_container_file(1, "c1", file_path, mock_ctx)
         assert delete_route.called
         assert res_delete["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_containers_pagination(mock_client, mock_ctx):
+    from dockhand_mcp.tools.containers import list_containers
+
+    payload = [
+        {"id": f"c{i:012d}", "Names": [f"/svc-{i}"], "Image": "nginx:alpine", "State": "running", "Status": "Up"}
+        for i in range(5)
+    ]
+    with respx.mock:
+        respx.get("http://dockhand.test/api/containers?env=1").mock(
+            return_value=Response(200, json=payload)
+        )
+        page = await list_containers(environment_id=1, ctx=mock_ctx, search="svc-*", limit=2, offset=1)
+        assert page["total"] == 5
+        assert page["limit"] == 2
+        assert page["offset"] == 1
+        assert page["hasMore"] is True
+        assert [c["Name"] for c in page["items"]] == ["/svc-1", "/svc-2"]
+
+
+@pytest.mark.asyncio
+async def test_update_container_runtime(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.containers import update_container_runtime
+    from dockhand_mcp.tools import get_tool_annotations
+
+    ann = get_tool_annotations("update_container_runtime")
+    assert ann.readOnlyHint is False
+    assert ann.destructiveHint is False
+
+    with respx.mock:
+        route = respx.post("http://dockhand.test/api/containers/c1/update-runtime?env=1").mock(
+            return_value=Response(200, json={"success": True, "warnings": ["Memory swap warning"]})
+        )
+
+        res = await update_container_runtime(
+            container_id="c1",
+            ctx=mock_ctx,
+            environment_id=1,
+            cpus=1.5,
+            memory="512m",
+            memory_reservation="256m",
+            memory_swap="-1",
+            restart_policy="on-failure",
+            restart_max_retries=5,
+            pids_limit=256,
+            cpu_shares=512,
+            cpu_period=100000,
+            cpu_quota=50000,
+            cpuset_cpus="0-1",
+            cpuset_mems="0",
+            blkio_weight=500,
+        )
+        assert route.called
+        sent = json.loads(route.calls.last.request.content)
+        assert sent == {
+            "NanoCpus": 1_500_000_000,
+            "Memory": 512 * 1024**2,
+            "MemoryReservation": 256 * 1024**2,
+            "MemorySwap": -1,
+            "RestartPolicy": {"Name": "on-failure", "MaximumRetryCount": 5},
+            "CpuShares": 512,
+            "CpuPeriod": 100000,
+            "CpuQuota": 50000,
+            "CpusetCpus": "0-1",
+            "CpusetMems": "0",
+            "PidsLimit": 256,
+            "BlkioWeight": 500,
+        }
+        assert res == {"success": True, "warnings": ["Memory swap warning"]}
+
+    # Validation checks
+    with pytest.raises(ValueError, match="At least one runtime update field"):
+        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1)
+
+    with pytest.raises(ValueError, match="Invalid restart_policy"):
+        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, restart_policy="invalid")
+
+    with pytest.raises(ValueError, match="Invalid 'cpus'"):
+        await update_container_runtime(container_id="c1", ctx=mock_ctx, environment_id=1, cpus=-0.5)
+
+    with pytest.raises(ValueError, match="Invalid restart_max_retries"):
+        await update_container_runtime(
+            container_id="c1", ctx=mock_ctx, environment_id=1, restart_policy="on-failure", restart_max_retries=-1
+        )

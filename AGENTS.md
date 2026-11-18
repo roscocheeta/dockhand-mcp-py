@@ -69,10 +69,11 @@ Before submitting any Pull Request or committing changes, run the following veri
 | Step | Command | Standard |
 | :--- | :--- | :--- |
 | **Test Suite & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain >90% line coverage across all modules. |
-| **Dependency Security Audit** | `uv tool run pip-audit` | Zero known vulnerabilities (moderate+ severity). |
+| **Dependency Security Audit** | `uv export --frozen --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt` | Zero known vulnerabilities (moderate+ severity). |
 | **Static Application Security (SAST)** | `uv tool run bandit -r dockhand_mcp -ll` | Zero medium or high severity security findings. |
 | **Build & Packaging Verification** | `uv build` | Successfully builds `.tar.gz` sdist and `.whl` wheel without hatchling errors. |
 | **Syntax & Type Validation** | `uv run --no-sync python -m py_compile dockhand_mcp/**/*.py` | Zero syntax or indentation errors. |
+| **Local AI Review (Optional/Pre-PR)** | `coderabbit review --agent --base dev` | Address any critical or major findings before pushing/opening PRs. |
 
 > [!IMPORTANT]
 > **Windows Lock Contention**: When running the MCP server locally (e.g. in Claude Desktop or background daemon), `.venv\Scripts\dockhand-mcp.exe` may be file-locked. Always pass `--no-sync` (`uv run --no-sync pytest`) to execute python commands without attempting to rewrite active executable binaries.
@@ -139,7 +140,7 @@ When preparing and publishing a new release:
    git checkout -b chore/prepare-release-vX.Y.Z
    ```
 2. **Version & Documentation Bump**:
-   - Update `version = "X.Y.Z"` in `pyproject.toml`.
+   - Update `version = "X.Y.Z"` in `pyproject.toml`, `uv.lock`, and `.github/ISSUE_TEMPLATE/bug_report.yml`.
    - Update `README.md` features, tool tables, and roadmap.
 3. **Execute Local Quality Gates**:
    ```bash

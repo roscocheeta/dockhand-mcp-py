@@ -2,9 +2,10 @@
 Image management tools.
 """
 
+import fnmatch
 from typing import Any
 from mcp.server.fastmcp import FastMCP, Context
-from dockhand_mcp.utils import encode_path, truncate_id, strip_nulls
+from dockhand_mcp.utils import encode_path, paginate_items, truncate_id, strip_nulls
 
 
 def _compact_image(img: dict) -> dict:
@@ -17,12 +18,34 @@ def _compact_image(img: dict) -> dict:
     }
 
 
-async def list_images(environment_id: int | None = None, ctx: Context = None) -> list:
-    """List all Docker images in an environment."""
+async def list_images(
+    environment_id: int | None = None,
+    ctx: Context = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list | dict:
+    """List all Docker images in an environment.
+
+    Args:
+        environment_id: Environment ID (optional, auto-resolves to default).
+        ctx: FastMCP Context.
+        search: Optional repo-tag or ID wildcard filter ('*' and '?'), e.g. 'nginx*'.
+        limit: Optional maximum number of items to return (returns pagination envelope when set).
+        offset: Zero-based starting offset for pagination (default 0).
+    """
     client = ctx.request_context.lifespan_context["dockhand"]
     images = await client.get("/api/images", params={"env": await client.resolve_environment_id(environment_id)})
     if isinstance(images, list):
-        return [_compact_image(i) for i in images]
+        items = [_compact_image(i) for i in images]
+        if search:
+            pat = search.strip().lower()
+            items = [
+                i for i in items
+                if fnmatch.fnmatchcase((i.get("Id") or "").lower(), pat)
+                or any(fnmatch.fnmatchcase(str(tag).lower(), pat) for tag in (i.get("RepoTags") or []))
+            ]
+        return paginate_items(items, limit=limit, offset=offset)
     return images
 
 async def get_image_history(image_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> list:
