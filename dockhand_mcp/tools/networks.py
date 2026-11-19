@@ -50,10 +50,10 @@ async def list_networks(
         return paginate_items(items, limit=limit, offset=offset)
     return networks
 
-async def inspect_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def inspect_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """Inspect a specific Docker network."""
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
-    """Inspect a specific Docker network."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/networks/{encode_path(network_id)}", 
@@ -61,10 +61,10 @@ async def inspect_network(network_id: str, ctx: Context = None, environment_id: 
     )
     return strip_nulls(data)
 
-async def delete_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def delete_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """⚠️ DESTRUCTIVE: Delete a Docker network. Connected containers will lose connectivity."""
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
-    """⚠️ DESTRUCTIVE: Delete a Docker network. Connected containers will lose connectivity."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/networks/{encode_path(network_id)}", 
@@ -81,10 +81,7 @@ async def create_network(
     ipam: dict | None = None,
     internal: bool = False,
     attachable: bool = False,
-    *args: Any
 ) -> dict:
-    if isinstance(name, int):
-        environment_id, name, ctx = name, str(ctx), environment_id
     """Create a new Docker network.
 
     Args:
@@ -98,6 +95,8 @@ async def create_network(
         internal: Restrict external access to the network (default: False).
         attachable: Allow manual container attachment (default: False).
     """
+    if isinstance(name, int):
+        environment_id, name, ctx = name, str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "name": name,
@@ -114,10 +113,10 @@ async def create_network(
         
     return await client.post("/api/networks", json=body, params={"env": await client.resolve_environment_id(environment_id)})
 
-async def get_network(network_id: str, ctx: Context = None, environment_id: int | None = None, *args: Any) -> dict:
+async def get_network(network_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """Get details for a specific Docker network."""
     if isinstance(network_id, int):
         environment_id, network_id, ctx = network_id, str(ctx), environment_id
-    """Get details for a specific Docker network."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/networks/{encode_path(network_id)}", 
