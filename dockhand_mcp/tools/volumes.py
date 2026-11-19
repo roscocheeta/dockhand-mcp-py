@@ -60,9 +60,9 @@ async def list_volumes(
     return volumes
 
 async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """Inspect a specific Docker volume."""
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
-    """Inspect a specific Docker volume."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/volumes/{encode_path(volume_name)}", 
@@ -71,9 +71,9 @@ async def inspect_volume(volume_name: str, ctx: Context = None, environment_id: 
     return strip_nulls(data)
 
 async def delete_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """⚠️ DESTRUCTIVE: Delete a Docker volume. All data stored in this volume will be permanently lost."""
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
-    """⚠️ DESTRUCTIVE: Delete a Docker volume. All data stored in this volume will be permanently lost."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/volumes/{encode_path(volume_name)}", 
@@ -81,9 +81,9 @@ async def delete_volume(volume_name: str, ctx: Context = None, environment_id: i
     )
 
 async def get_volume(volume_name: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """Get details for a specific Docker volume."""
     if isinstance(volume_name, int):
         environment_id, volume_name, ctx = volume_name, str(ctx), environment_id
-    """Get details for a specific Docker volume."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/volumes/{encode_path(volume_name)}", 
@@ -99,8 +99,6 @@ async def create_volume(
     driver_opts: dict | None = None,
     labels: dict | None = None,
 ) -> dict:
-    if isinstance(name, int):
-        environment_id, name, ctx = name, str(ctx), environment_id
     """Create a new Docker volume.
 
     Args:
@@ -111,6 +109,8 @@ async def create_volume(
         driver_opts: Volume driver options as key-value pairs (e.g. for NFS mounts).
         labels: User-defined labels for organizing volumes.
     """
+    if isinstance(name, int):
+        environment_id, name, ctx = name, str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "name": name,
