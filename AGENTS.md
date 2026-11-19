@@ -125,7 +125,8 @@ All code, tool implementations, and refactors must uphold these non-negotiable i
 
 - **Upstream Mocking**: Never rely on a live Dockhand instance during automated testing. All HTTP interactions must be mocked using `respx.mock` and `httpx.Response`.
 - **SSE Stream Testing**: Server-Sent Events endpoints (`/deploy-stream`, `/check-updates`) must be tested with `Content-Type: text/event-stream` and valid `data: {...}\n\n` payloads to verify `post_sse` and `_parse_sse_response`.
-- **Backward-Compatible Parameter Swapping**: When modifying tool parameter orders or adding optional defaults, maintain legacy positional argument compatibility using type checks (`isinstance(first_arg, int)` or `_normalize_container_args`).
+- **Backward-Compatible Parameter Swapping**: When modifying tool parameter orders or adding optional defaults, maintain legacy positional argument compatibility using explicit type checks (`isinstance(first_arg, int)` or `_normalize_container_args`). **NEVER** use `*args` or `**kwargs` in FastMCP-registered tool signatures—FastMCP exposes variadic parameters as required schema fields (`args`), breaking MCP client calls.
+- **FastMCP Schema & Dispatch Verification**: New or modified tools must pass the FastMCP schema contract and `call_tool()` dispatch checks (`tests/test_mcp_contracts.py`) in addition to `respx.mock` unit tests.
 - **Clean Teardown**: Close any active HTTP clients or mock transports in test fixtures to avoid leaking connections or unclosed event loops across pytest runs.
 
 ---

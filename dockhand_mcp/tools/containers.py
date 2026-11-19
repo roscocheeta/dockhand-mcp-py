@@ -177,8 +177,8 @@ async def get_container_stats(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Get live resource usage statistics (CPU, memory, net I/O) for a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.get(
@@ -191,8 +191,8 @@ async def get_container_top(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Get the running processes inside a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.get(
@@ -206,11 +206,11 @@ async def list_container_files(
     ctx: Context = None,
     path: str = "/",
 ) -> list | dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """
     List files and directories inside a container.
     path: Absolute path inside the container to list (default: /).
     """
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/containers/{encode_path(container_id)}/files",
@@ -245,8 +245,8 @@ async def start_container(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Start a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.post(f"/api/containers/{encode_path(container_id)}/start", params={"env": env_id})
@@ -256,8 +256,8 @@ async def stop_container(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Stop a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.post(f"/api/containers/{encode_path(container_id)}/stop", params={"env": env_id})
@@ -267,8 +267,8 @@ async def restart_container(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Restart a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.post(f"/api/containers/{encode_path(container_id)}/restart", params={"env": env_id})
@@ -278,8 +278,8 @@ async def pause_container(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Pause a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.post(f"/api/containers/{encode_path(container_id)}/pause", params={"env": env_id})
@@ -289,15 +289,15 @@ async def unpause_container(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Unpause a container."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     return await client.post(f"/api/containers/{encode_path(container_id)}/unpause", params={"env": env_id})
 
 async def delete_container(environment_id: int | None = None, container_id: str = "", ctx: Context = None, force: bool = False) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """⚠️ DESTRUCTIVE: Delete a container (optionally force-kill it first). Permanent unless re-created."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     params = {"env": await client.resolve_environment_id(environment_id)}
     if force:
@@ -359,8 +359,8 @@ async def update_container(
     repull_image: bool | None = None,
     start_after_update: bool | None = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Update a container (Note: Dockhand will recreate it)."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {}
     if image:
@@ -501,10 +501,10 @@ async def exec_container(
     shell: str | None = None,
     user: str | None = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Execute a command/create an interactive terminal session in a container.
     Returns an execId which can be used to attach via WebSocket.
     """
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {}
     if shell:
@@ -614,8 +614,6 @@ async def run_container_exec(
     working_dir: str | None = None,
     max_bytes: int = 10240,
 ) -> dict:
-    if isinstance(container_id, int):
-        environment_id, container_id, cmd, ctx = container_id, str(cmd), ctx, environment_id
     """
     Run a one-shot command in a container and wait for the result (returns stdout, stderr, exitCode).
     ⚠️ SECURITY WARNING: Executes arbitrary commands inside the target container and streams output into the chat context.
@@ -629,6 +627,8 @@ async def run_container_exec(
         working_dir: Optional working directory.
         max_bytes: Maximum output bytes to capture before truncation (default 10240).
     """
+    if isinstance(container_id, int):
+        environment_id, container_id, cmd, ctx = container_id, str(cmd), ctx, environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     if isinstance(cmd, str):
         cmd_list = ["/bin/sh", "-c", cmd]
@@ -690,8 +690,8 @@ async def get_container_compose(
     container_id: str = "",
     ctx: Context = None,
 ) -> dict:
-    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     """Generate a docker-compose service definition from a running container's inspect. Secret env vars are redacted."""
+    environment_id, container_id, ctx = _normalize_container_args(environment_id, container_id, ctx)
     client = ctx.request_context.lifespan_context["dockhand"]
     env_id = await client.resolve_environment_id(environment_id)
     data = await client.get(
@@ -707,9 +707,9 @@ async def get_container_compose(
     return data
 
 async def check_container_updates(environment_id: int | None = None, ctx: Context = None) -> dict:
+    """Trigger a fresh image-update check across all containers in an environment."""
     if environment_id is not None and not isinstance(environment_id, int):
         ctx, environment_id = environment_id, None
-    """Trigger a fresh image-update check across all containers in an environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post_sse(
         "/api/containers/check-updates",
@@ -772,9 +772,9 @@ async def get_container_scheduled_actions(
     ctx: Context = None,
     environment_id: int | None = None,
 ) -> dict:
+    """Get a container's scheduled start and stop times (HH:MM or cron), along with status, source ('ui' vs 'label'), and error state."""
     if isinstance(container_name, int):
         environment_id, container_name, ctx = container_name, str(ctx), environment_id
-    """Get a container's scheduled start and stop times (HH:MM or cron), along with status, source ('ui' vs 'label'), and error state."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.get(
         f"/api/scheduled-actions/{encode_path(container_name)}",
@@ -789,12 +789,12 @@ async def set_container_scheduled_actions(
     stop_at: str | None = None,
     enabled: bool | None = None,
 ) -> dict:
-    if isinstance(container_name, int):
-        environment_id, container_name, ctx = container_name, str(ctx), environment_id
     """Set or remove a container's scheduled start and stop times (HH:MM every day, or a 5-field cron expression).
 
     Setting both start_at and stop_at to null/empty removes the schedule.
     """
+    if isinstance(container_name, int):
+        environment_id, container_name, ctx = container_name, str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body: dict[str, Any] = {
         "startAt": start_at,

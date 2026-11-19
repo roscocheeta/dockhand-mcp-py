@@ -54,9 +54,9 @@ async def list_images(
     return images
 
 async def get_image_history(image_id: str, ctx: Context = None, environment_id: int | None = None) -> list:
+    """Get history for an image."""
     if isinstance(image_id, int):
         environment_id, image_id, ctx = image_id, str(ctx), environment_id
-    """Get history for an image."""
     client = ctx.request_context.lifespan_context["dockhand"]
     data = await client.get(
         f"/api/images/{encode_path(image_id)}/history", 
@@ -65,9 +65,9 @@ async def get_image_history(image_id: str, ctx: Context = None, environment_id: 
     return strip_nulls(data)
 
 async def remove_image(image_id: str, ctx: Context = None, environment_id: int | None = None) -> dict:
+    """Remove/delete an image from the environment."""
     if isinstance(image_id, int):
         environment_id, image_id, ctx = image_id, str(ctx), environment_id
-    """Remove/delete an image from the environment."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.delete(
         f"/api/images/{encode_path(image_id)}", 
@@ -80,13 +80,13 @@ async def pull_image(
     environment_id: int | None = None,
     scan_after_pull: bool = False,
 ) -> dict:
-    if isinstance(image, int):
-        environment_id, image, ctx = image, str(ctx), environment_id
     """
     Pull an image from a registry.
     image: Image name with tag (e.g. nginx:latest)
     scan_after_pull: Whether to scan the image for vulnerabilities after pulling.
     """
+    if isinstance(image, int):
+        environment_id, image, ctx = image, str(ctx), environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {"image": image}
     if scan_after_pull:
@@ -105,9 +105,9 @@ async def tag_image(
     ctx: Context = None,
     environment_id: int | None = None,
 ) -> dict:
+    """Tag an existing image."""
     if isinstance(image_id, int):
         environment_id, image_id, repo, tag, ctx = image_id, str(repo), tag, ctx, environment_id
-    """Tag an existing image."""
     client = ctx.request_context.lifespan_context["dockhand"]
     return await client.post(
         f"/api/images/{encode_path(image_id)}/tag", 
@@ -123,8 +123,6 @@ async def push_image(
     image_name: str | None = None,
     new_tag: str | None = None,
 ) -> dict:
-    if isinstance(image_id, int):
-        environment_id, image_id, registry_id, ctx = image_id, str(registry_id), ctx, environment_id
     """Push an image to a registry.
     
     Args:
@@ -135,6 +133,8 @@ async def push_image(
         image_name: Optional original image name.
         new_tag: Custom tag for the pushed image (e.g. username/myapp:v1.0).
     """
+    if isinstance(image_id, int):
+        environment_id, image_id, registry_id, ctx = image_id, str(registry_id), ctx, environment_id
     client = ctx.request_context.lifespan_context["dockhand"]
     body = {
         "imageId": image_id,
