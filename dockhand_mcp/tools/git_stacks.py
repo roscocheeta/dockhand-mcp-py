@@ -65,7 +65,7 @@ async def list_git_stacks(
         offset: Zero-based starting offset for pagination (default 0).
     """
     if hasattr(ctx, "request_context") is False and isinstance(ctx, str):
-        search, ctx = ctx, None
+        search, ctx = ctx, search
     client = ctx.request_context.lifespan_context["dockhand"]
     stacks = await client.get("/api/git/stacks")
     if isinstance(stacks, list):

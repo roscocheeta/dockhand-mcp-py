@@ -46,7 +46,7 @@ class TestMCPToolSchemaContracts:
 
     def test_all_tool_signatures_and_schemas_are_valid(self):
         mcp = FastMCP("contract-check")
-        register_all_tools(mcp, read_only=False)
+        register_all_tools(mcp, read_only=False, disabled_tools=frozenset())
         tools = mcp._tool_manager._tools
         assert len(tools) == 182
 
@@ -87,7 +87,7 @@ class TestMCPToolDispatchEndToEnd:
     @pytest.mark.asyncio
     async def test_dispatch_representative_tools_through_fastmcp(self, mock_client):
         mcp = FastMCP("dispatch-check")
-        register_all_tools(mcp, read_only=False)
+        register_all_tools(mcp, read_only=False, disabled_tools=frozenset())
 
         mock_ctx = MagicMock()
         mock_ctx.request_context.lifespan_context = {"dockhand": mock_client}
@@ -126,7 +126,7 @@ class TestMCPToolDispatchEndToEnd:
             respx.post("http://dockhand.test/api/git/stacks/33/deploy-stream").mock(
                 return_value=Response(
                     200,
-                    text='data: {"success": true}\n',
+                    text='data: {"success": true}\n\n',
                     headers={"Content-Type": "text/event-stream"},
                 )
             )
@@ -191,3 +191,33 @@ class TestMCPToolDispatchEndToEnd:
                 "set_language_preference", {"language": "ko"}, context=mock_ctx
             )
             assert lang == {"language": "ko"}
+
+
+class TestRegistrarAndServerEntrypoint:
+    """Tests for ToolRegistrar decorator/delegation and server.py helpers."""
+
+    def test_tool_registrar_decorator_and_getattr(self):
+        from dockhand_mcp.tools import _AnnotatedToolRegistrar
+
+        mcp = FastMCP("registrar-check")
+        registrar = _AnnotatedToolRegistrar(mcp, read_only=False, disabled_tools=frozenset())
+
+        @registrar.tool(name="custom_ping")
+        async def ping() -> str:
+            """Ping tool."""
+            return "pong"
+
+        assert "custom_ping" in mcp._tool_manager._tools
+        assert registrar.name == "registrar-check"
+
+    def test_server_get_client_and_main(self, monkeypatch, mock_client):
+        from dockhand_mcp import server
+
+        mock_ctx = MagicMock()
+        mock_ctx.request_context.lifespan_context = {"dockhand": mock_client}
+        assert server._get_client(mock_ctx) is mock_client
+
+        called = []
+        monkeypatch.setattr(server.mcp, "run", lambda: called.append(True))
+        server.main()
+        assert called == [True]

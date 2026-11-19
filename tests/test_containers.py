@@ -827,3 +827,72 @@ async def test_update_container_runtime(mock_client, mock_ctx):
         await update_container_runtime(
             container_id="c1", ctx=mock_ctx, environment_id=1, restart_policy="on-failure", restart_max_retries=-1
         )
+
+
+@pytest.mark.asyncio
+async def test_containers_remaining_edge_branches(mock_client, mock_ctx):
+    import base64
+    from dockhand_mcp.tools.containers import (
+        update_container_runtime,
+        upload_container_file,
+        run_container_exec,
+        check_container_updates,
+        get_pending_container_updates,
+    )
+
+    # 1. upload_container_file > 10 MiB raises ValueError
+    oversized = base64.b64encode(b"a" * (10 * 1024 * 1024 + 1)).decode("ascii")
+    with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+        await upload_container_file(1, "c1", "/tmp", "big.bin", oversized, mock_ctx)
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/environments").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "default", "isDefault": True}])
+        )
+        # 2. update_container_runtime legacy positional (env_id, container_id, ctx)
+        respx.post("http://dockhand.test/api/containers/c1/update-runtime?env=1").mock(
+            return_value=Response(200, json={"success": True})
+        )
+        rt = await update_container_runtime(1, "c1", mock_ctx, cpus=1.0)  # type: ignore[arg-type]
+        assert rt["success"] is True
+
+        # 3. run_container_exec legacy positional (env_id, container_id, cmd, ctx)
+        respx.post("http://dockhand.test/api/containers/c1/exec/run?envId=1").mock(
+            return_value=Response(200, json={"stdout": "hi", "exitCode": 0})
+        )
+        ex = await run_container_exec(1, "c1", "echo hi", mock_ctx)  # type: ignore[arg-type]
+        assert ex["stdout"] == "hi"
+
+        # 4. check_container_updates(ctx) positional ctx
+        respx.post("http://dockhand.test/api/containers/check-updates?env=1").mock(
+            return_value=Response(
+                200,
+                text='data: {"success": true}\n\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+        chk = await check_container_updates(mock_ctx)
+        assert chk["success"] is True
+
+        # 5. get_pending_container_updates with non-dict item, nested dict value, and top-level list
+        respx.get("http://dockhand.test/api/containers/pending-updates?env=1").mock(
+            side_effect=[
+                Response(
+                    200,
+                    json={
+                        "updates": ["raw-str-item"],
+                        "featured": {"containerName": "web", "releaseNotes": "verbose"},
+                    },
+                ),
+                Response(
+                    200,
+                    json=[{"containerName": "db", "releaseNotes": "long notes"}],
+                ),
+            ]
+        )
+        res_dict = await get_pending_container_updates(environment_id=1, ctx=mock_ctx, compact=True)
+        assert res_dict["updates"] == ["raw-str-item"]
+        assert "releaseNotes" not in res_dict["featured"]
+
+        res_list = await get_pending_container_updates(environment_id=1, ctx=mock_ctx, compact=True)
+        assert "releaseNotes" not in res_list[0]

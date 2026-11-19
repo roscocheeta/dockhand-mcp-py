@@ -112,4 +112,8 @@ async def test_system_info_health_and_changelog_truncation(mock_client, mock_ctx
         assert "Line 6" not in cl
         assert "[...truncated at 5 lines" in cl
 
+        # Short changelog (within max_lines) returned verbatim without truncation
+        cl_full = await get_changelog(ctx=mock_ctx, max_lines=100)
+        assert cl_full == long_changelog
+
 

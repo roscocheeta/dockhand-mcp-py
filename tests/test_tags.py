@@ -79,3 +79,27 @@ async def test_stack_tags(mock_client):
         put_res = await set_stack_tags(environment_id=1, name='web', tag_ids=[2], ctx=mock_ctx)
         assert put_route.called
         assert put_res == [2]
+
+
+@pytest.mark.asyncio
+async def test_tags_optional_fields_and_legacy_positional(mock_client):
+    import json
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        upd_route = respx.put('http://dockhand.test/api/tags/5').mock(
+            return_value=Response(200, json={'id': 5, 'name': 'renamed', 'icon': 'star'})
+        )
+        res = await update_tag(tag_id=5, name='renamed', icon='star', ctx=mock_ctx)
+        assert res['name'] == 'renamed'
+        body = json.loads(upd_route.calls.last.request.content)
+        assert body == {'name': 'renamed', 'icon': 'star'}
+
+        respx.get('http://dockhand.test/api/stacks/web/tags?env=1').mock(
+            return_value=Response(200, json={'tagIds': [4]})
+        )
+        assert await get_stack_tags(1, 'web', mock_ctx) == [4]  # type: ignore[arg-type]
+
+        respx.put('http://dockhand.test/api/stacks/web/tags?env=1').mock(
+            return_value=Response(200, json={'tagIds': [4, 5]})
+        )
+        assert await set_stack_tags(1, 'web', [4, 5], mock_ctx) == [4, 5]  # type: ignore[arg-type]
