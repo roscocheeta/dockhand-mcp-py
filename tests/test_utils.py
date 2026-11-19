@@ -286,3 +286,33 @@ class TestUtils:
         for zero_val in (0, "0"):
             with pytest.raises(ValueError, match="Invalid memory value"):
                 parse_memory_bytes(zero_val, allow_zero=False)
+
+    def test_utils_remaining_edge_cases(self, monkeypatch):
+        from decimal import InvalidOperation
+        import dockhand_mcp.utils as utils_mod
+
+        # compact_container_inspect with non-dict input
+        assert utils_mod.compact_container_inspect("not-a-dict") == "not-a-dict"  # type: ignore[arg-type]
+
+        # compact_container_inspect preserving non-empty filtered Labels
+        inspected = utils_mod.compact_container_inspect(
+            {
+                "Id": "abcdef1234567890",
+                "Name": "/web",
+                "Config": {"Image": "nginx", "Labels": {"app": "web", "com.docker.compose.project": "demo"}},
+            }
+        )
+        assert inspected["Config"]["Labels"]["app"] == "web"
+
+        # parse_since_to_epoch with naive ISO-8601 timestamp (no tzinfo -> UTC)
+        assert utils_mod.parse_since_to_epoch("2026-10-31T00:00:00") == utils_mod.parse_since_to_epoch(
+            "2026-10-31T00:00:00Z"
+        )
+
+        # parse_memory_bytes catching InvalidOperation from Decimal
+        def _boom(_s):
+            raise InvalidOperation("bad decimal")
+
+        monkeypatch.setattr(utils_mod, "Decimal", _boom)
+        with pytest.raises(ValueError, match="Invalid memory value"):
+            utils_mod.parse_memory_bytes("512m")

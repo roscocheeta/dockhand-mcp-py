@@ -253,3 +253,17 @@ async def test_delete_and_test_environment_and_strip_creds(mock_client, mock_ctx
         assert (await delete_environment(3, mock_ctx))["deleted"] is True
 
 
+@pytest.mark.asyncio
+async def test_environments_non_dict_and_non_list_fallbacks(mock_client, mock_ctx):
+    from dockhand_mcp.tools.environments import _strip_environment_credentials, list_environments
+
+    assert _strip_environment_credentials("raw") == "raw"  # type: ignore[arg-type]
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/environments").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        res = await list_environments(ctx=mock_ctx)
+        assert res == {"environments": {"unexpected": True}}
+
+

@@ -97,3 +97,29 @@ async def test_git_repository_crud_sync_test_webhook(mock_client):
         assert del_route.called
         assert deleted["success"] is True
 
+
+@pytest.mark.asyncio
+async def test_git_repos_non_list_and_credential_private_key(mock_client):
+    import json
+    from dockhand_mcp.tools.git_credentials import create_git_credential
+    from dockhand_mcp.tools.git_repositories import list_git_repositories
+
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        respx.get("http://dockhand.test/api/git/repositories").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        assert await list_git_repositories(ctx=mock_ctx) == {"unexpected": True}
+
+        cred_route = respx.post("http://dockhand.test/api/git/credentials").mock(
+            return_value=Response(200, json={"id": 9, "privateKey": "-----BEGIN KEY-----"})
+        )
+        res = await create_git_credential(
+            name="ssh-cred",
+            username="git",
+            ctx=mock_ctx,
+            private_key="-----BEGIN KEY-----",
+        )
+        assert json.loads(cred_route.calls.last.request.content)["privateKey"] == "-----BEGIN KEY-----"
+        assert res["privateKey"] == "***REDACTED***"
+

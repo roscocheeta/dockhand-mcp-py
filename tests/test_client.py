@@ -5,6 +5,7 @@ Tests for DockhandClient HTTP methods, error handling, and path encoding.
 import pytest
 import respx
 import httpx
+from httpx import Response
 
 from dockhand_mcp.client import DockhandClient, DockhandAPIError
 from dockhand_mcp.utils import encode_path
@@ -260,4 +261,148 @@ class TestReadOnlyAndToolAnnotations:
         assert "run_container_exec" not in ro_tools
         assert "create_stack" not in ro_tools
         assert all(is_read_only_tool(name) for name in ro_tools)
+
+
+class TestClientEdgeCases:
+    """Tests covering remaining auth, resolution, SSE, and health_check edge paths."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_ensure_authenticated_uses_double_checked_lock(self):
+        import asyncio
+        from dockhand_mcp.client import DockhandClient
+
+        async with DockhandClient("http://dockhand.test", "admin", "secret") as client:
+            login_calls = 0
+
+            async def slow_login(request):
+                nonlocal login_calls
+                login_calls += 1
+                await asyncio.sleep(0.05)
+                return Response(200, json={"ok": True}, headers={"Set-Cookie": "sid=abc; Path=/"})
+
+            with respx.mock:
+                respx.post("http://dockhand.test/api/auth/login").mock(side_effect=slow_login)
+                await asyncio.gather(
+                    client._auth.ensure_authenticated(client._client),
+                    client._auth.ensure_authenticated(client._client),
+                )
+            assert login_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_invalidate_and_retry_noop_with_api_token(self):
+        from dockhand_mcp.client import DockhandClient
+
+        async with DockhandClient("http://dockhand.test", api_token="tok_123") as client:
+            await client._auth.invalidate_and_retry(client._client, 0)
+            assert client._auth.uses_token is True
+
+    @pytest.mark.asyncio
+    async def test_login_request_error_raises_auth_error(self):
+        import httpx
+        from dockhand_mcp.client import DockhandClient, DockhandAuthError
+
+        async with DockhandClient("http://dockhand.test", "admin", "secret") as client:
+            with respx.mock:
+                respx.post("http://dockhand.test/api/auth/login").mock(
+                    side_effect=httpx.ConnectError("connection refused")
+                )
+                with pytest.raises(DockhandAuthError, match="Failed to connect to Dockhand"):
+                    await client.get("/api/health")
+
+    @pytest.mark.asyncio
+    async def test_resolve_environment_id_error_paths(self, monkeypatch):
+        from dockhand_mcp.client import DockhandClient
+
+        async with DockhandClient("http://dockhand.test", api_token="tok_123") as client:
+            # Non-integer DOCKHAND_DEFAULT_ENV
+            monkeypatch.setenv("DOCKHAND_DEFAULT_ENV", "not-an-int")
+            with pytest.raises(ValueError, match="Invalid DOCKHAND_DEFAULT_ENV"):
+                await client.resolve_environment_id()
+            monkeypatch.delenv("DOCKHAND_DEFAULT_ENV", raising=False)
+
+            # GET /api/environments fails
+            with respx.mock:
+                respx.get("http://dockhand.test/api/environments").mock(
+                    return_value=Response(500, text="boom")
+                )
+                with pytest.raises(ValueError, match="Could not automatically resolve default environment"):
+                    await client.resolve_environment_id()
+
+            # Empty environments list
+            with respx.mock:
+                respx.get("http://dockhand.test/api/environments").mock(
+                    return_value=Response(200, json=[])
+                )
+                with pytest.raises(ValueError, match="No environments found"):
+                    await client.resolve_environment_id()
+
+    @pytest.mark.asyncio
+    async def test_resolve_git_stack_id_error_and_non_dict_paths(self):
+        from dockhand_mcp.client import DockhandClient
+
+        async with DockhandClient("http://dockhand.test", api_token="tok_123") as client:
+            # GET /api/git/stacks fails
+            with respx.mock:
+                respx.get("http://dockhand.test/api/git/stacks").mock(
+                    return_value=Response(500, text="boom")
+                )
+                with pytest.raises(ValueError, match="Could not resolve Git stack"):
+                    await client.resolve_git_stack_id("radarr")
+
+            # Skips non-dict items in list
+            with respx.mock:
+                respx.get("http://dockhand.test/api/git/stacks").mock(
+                    return_value=Response(200, json=["bad-entry", {"id": 42, "stackName": "radarr"}])
+                )
+                assert await client.resolve_git_stack_id("radarr") == 42
+
+            # Unexpected non-list API response
+            with respx.mock:
+                respx.get("http://dockhand.test/api/git/stacks").mock(
+                    return_value=Response(200, json={"unexpected": True})
+                )
+                with pytest.raises(ValueError, match="unexpected API response"):
+                    await client.resolve_git_stack_id("radarr")
+
+    @pytest.mark.asyncio
+    async def test_request_sse_401_retry_and_error(self):
+        from dockhand_mcp.client import DockhandClient, DockhandAPIError
+
+        async with DockhandClient("http://dockhand.test", "admin", "secret") as client:
+            with respx.mock:
+                respx.post("http://dockhand.test/api/auth/login").mock(
+                    return_value=Response(200, json={"ok": True}, headers={"Set-Cookie": "sid=abc; Path=/"})
+                )
+                sse_route = respx.post("http://dockhand.test/api/stacks/app/deploy").mock(
+                    side_effect=[
+                        Response(401, text="Unauthorized"),
+                        Response(
+                            200,
+                            text='data: {"output": "deployed", "success": true}\n\n',
+                            headers={"Content-Type": "text/event-stream"},
+                        ),
+                    ]
+                )
+                res = await client.post_sse("/api/stacks/app/deploy")
+                assert res == {"success": True, "output": "deployed"}
+                assert sse_route.call_count == 2
+
+                respx.post("http://dockhand.test/api/stacks/app/fail").mock(
+                    return_value=Response(500, text="deploy exploded")
+                )
+                with pytest.raises(DockhandAPIError) as exc_info:
+                    await client.post_sse("/api/stacks/app/fail")
+                assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_health_check_plain_text_response(self):
+        from dockhand_mcp.client import DockhandClient
+
+        async with DockhandClient("http://dockhand.test", api_token="tok_123") as client:
+            with respx.mock:
+                respx.get("http://dockhand.test/api/health").mock(
+                    return_value=Response(200, text="healthy", headers={"Content-Type": "text/plain"})
+                )
+                res = await client.health_check()
+                assert res == {"status": "healthy", "statusCode": 200}
 

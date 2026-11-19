@@ -617,3 +617,17 @@ async def test_execute_batch_operation_string_normalization(mock_client):
                 ctx=mock_ctx,
                 environment_id=1,
             )
+
+
+@pytest.mark.asyncio
+async def test_set_language_preference_positional_none_ctx(mock_client):
+    from dockhand_mcp.tools.misc import set_language_preference
+
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        route = respx.put("http://dockhand.test/api/preferences/language").mock(
+            return_value=Response(200, json={"language": None})
+        )
+        res = await set_language_preference(ctx=None, language=mock_ctx)  # type: ignore[arg-type]
+        assert route.called
+        assert res == {"language": None}

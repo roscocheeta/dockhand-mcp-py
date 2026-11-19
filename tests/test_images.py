@@ -125,3 +125,37 @@ async def test_list_images_search_and_pagination(mock_client, mock_ctx):
         res_raw_id = await list_images(environment_id=1, ctx=mock_ctx, search="*00020000", limit=5, offset=0)
         assert res_raw_id["total"] == 1
         assert res_raw_id["items"][0]["RepoTags"] == ["app/img-2:latest"]
+
+
+@pytest.mark.asyncio
+async def test_images_legacy_positional_and_non_list_fallback(mock_client, mock_ctx):
+    with respx.mock:
+        respx.get("http://dockhand.test/api/images?env=1").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        assert await list_images(environment_id=1, ctx=mock_ctx) == {"unexpected": True}
+
+        respx.get("http://dockhand.test/api/images/img1/history?env=1").mock(
+            return_value=Response(200, json=[{"Id": "img1"}])
+        )
+        assert await get_image_history(1, "img1", mock_ctx) == [{"Id": "img1"}]  # type: ignore[arg-type]
+
+        respx.delete("http://dockhand.test/api/images/img1?env=1").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        assert (await remove_image(1, "img1", mock_ctx))["deleted"] is True  # type: ignore[arg-type]
+
+        respx.post("http://dockhand.test/api/images/pull?env=1").mock(
+            return_value=Response(200, json={"pulled": True})
+        )
+        assert (await pull_image(1, "nginx:latest", mock_ctx))["pulled"] is True  # type: ignore[arg-type]
+
+        respx.post("http://dockhand.test/api/images/img1/tag?env=1").mock(
+            return_value=Response(200, json={"tagged": True})
+        )
+        assert (await tag_image(1, "img1", "myrepo", "v1", mock_ctx))["tagged"] is True  # type: ignore[arg-type]
+
+        respx.post("http://dockhand.test/api/images/push?env=1").mock(
+            return_value=Response(200, json={"pushed": True})
+        )
+        assert (await push_image(1, "img1", 9, mock_ctx))["pushed"] is True  # type: ignore[arg-type]

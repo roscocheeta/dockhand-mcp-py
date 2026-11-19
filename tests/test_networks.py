@@ -123,3 +123,37 @@ async def test_list_networks_search_and_pagination(mock_client):
         assert res_raw_id["total"] == 1
         assert res_raw_id["items"][0]["Name"] == "net-1"
 
+
+@pytest.mark.asyncio
+async def test_networks_legacy_positional_and_non_list_fallback(mock_client):
+    from dockhand_mcp.tools.networks import (
+        list_networks,
+        inspect_network,
+        delete_network,
+        create_network,
+        get_network,
+    )
+
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        respx.get("http://dockhand.test/api/networks?env=1").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        assert await list_networks(environment_id=1, ctx=mock_ctx) == {"unexpected": True}
+
+        respx.get("http://dockhand.test/api/networks/net1?env=1").mock(
+            return_value=Response(200, json={"Id": "net1", "Name": "mynet"})
+        )
+        assert (await inspect_network(1, "net1", mock_ctx))["Id"] == "net1"  # type: ignore[arg-type]
+        assert (await get_network(1, "net1", mock_ctx))["Name"] == "mynet"  # type: ignore[arg-type]
+
+        respx.post("http://dockhand.test/api/networks?env=1").mock(
+            return_value=Response(200, json={"Id": "net2"})
+        )
+        assert (await create_network(1, "new-net", mock_ctx))["Id"] == "net2"  # type: ignore[arg-type]
+
+        respx.delete("http://dockhand.test/api/networks/net1?env=1").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        assert (await delete_network(1, "net1", mock_ctx))["deleted"] is True  # type: ignore[arg-type]
+

@@ -82,3 +82,22 @@ async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
         assert scans[0]["image"] == "nginx:latest"
 
 
+@pytest.mark.asyncio
+async def test_security_positional_arg_swaps(mock_client, mock_ctx):
+    from dockhand_mcp.tools.security import list_vulnerabilities, scan_image
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/environments").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "default", "isDefault": True}])
+        )
+        respx.get("http://dockhand.test/api/security/vulnerabilities?env=1").mock(
+            return_value=Response(200, json={"items": []})
+        )
+        assert await list_vulnerabilities(mock_ctx) == {"items": []}
+
+        respx.post("http://dockhand.test/api/images/scan?env=1").mock(
+            return_value=Response(200, json={"jobId": "456"})
+        )
+        assert (await scan_image(1, "nginx:latest", mock_ctx))["jobId"] == "456"  # type: ignore[arg-type]
+
+

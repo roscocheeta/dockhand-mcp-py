@@ -561,3 +561,111 @@ async def test_list_stacks_pagination(mock_client):
 
         res_direct = await list_stacks(environment_id=1, ctx=mock_ctx, limit=2, offset=0)
         assert [s["Name"] for s in res_direct["items"]] == ["stack-0", "stack-1"]
+
+
+@pytest.mark.asyncio
+async def test_stacks_legacy_positional_and_edge_branches(mock_client, mock_ctx):
+    import json
+    from dockhand_mcp.tools.stacks import (
+        list_stacks,
+        create_stack,
+        get_stack_compose,
+        get_stack_env_raw,
+        get_stack_stats,
+        convert_stack_to_git,
+    )
+
+    with respx.mock:
+        respx.get("http://dockhand.test/api/environments").mock(
+            return_value=Response(200, json=[{"id": 1, "name": "default", "isDefault": True}])
+        )
+        respx.get("http://dockhand.test/api/stacks?env=1").mock(
+            side_effect=[
+                Response(200, json=[{"id": 1, "name": "prod-app", "status": "running"}]),
+                Response(200, json=[{"id": 1, "name": "prod-app", "status": "running"}]),
+                Response(200, json={"unexpected": "dict"}),
+            ]
+        )
+        # 1. list_stacks(ctx) positional ctx
+        res1 = await list_stacks(mock_ctx)
+        assert len(res1) == 1
+
+        # 2. list_stacks("prod-*", ctx) positional search + ctx
+        res2 = await list_stacks("prod-*", mock_ctx)
+        assert len(res2) == 1
+
+        # 3. Non-list API fallback
+        res3 = await list_stacks(1, mock_ctx)
+        assert res3 == {"unexpected": "dict"}
+
+        # 4. Fallback else branch when environment_id is neither int, ctx, nor search string
+        class _DummyEnv:
+            pass
+
+        with pytest.raises(AttributeError):
+            await list_stacks(_DummyEnv())  # type: ignore[arg-type]
+
+        # 4. create_stack legacy positional (env_id, name, compose, ctx)
+        respx.post("http://dockhand.test/api/stacks?env=1").mock(
+            return_value=Response(
+                200,
+                text='data: {"success": true}\n\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
+        )
+        created = await create_stack(1, "legacy-stack", "services: {}", mock_ctx)  # type: ignore[arg-type]
+        assert created["success"] is True
+
+        # 5. get_stack_compose returning raw string & non-dict/non-str (list)
+        respx.get("http://dockhand.test/api/stacks/raw/compose?env=1").mock(
+            side_effect=[
+                Response(200, text="DB_PASSWORD=secret\n", headers={"Content-Type": "text/plain"}),
+                Response(200, json=["raw-list"]),
+            ]
+        )
+        comp_str = await get_stack_compose("raw", mock_ctx, environment_id=1)
+        assert "DB_PASSWORD=***REDACTED***" in comp_str
+        comp_other = await get_stack_compose("raw", mock_ctx, environment_id=1)
+        assert comp_other == ["raw-list"]
+
+        # 6. get_stack_env_raw returning raw string & non-dict/non-str (list)
+        respx.get("http://dockhand.test/api/stacks/raw/env/raw?env=1").mock(
+            side_effect=[
+                Response(200, text="API_KEY=topsecret\n", headers={"Content-Type": "text/plain"}),
+                Response(200, json=["raw-list"]),
+            ]
+        )
+        env_str = await get_stack_env_raw("raw", mock_ctx, environment_id=1)
+        assert "API_KEY=***REDACTED***" in env_str
+        env_other = await get_stack_env_raw("raw", mock_ctx, environment_id=1)
+        assert env_other == ["raw-list"]
+
+        # 7. get_stack_stats(ctx) positional ctx
+        respx.get("http://dockhand.test/api/stack-stats?env=1").mock(
+            return_value=Response(200, json=[{"name": "app"}])
+        )
+        stats = await get_stack_stats(mock_ctx)
+        assert stats == [{"name": "app"}]
+
+        # 8. convert_stack_to_git with all optional fields
+        attach_route = respx.post("http://dockhand.test/api/stacks/app/attach?env=1").mock(
+            return_value=Response(200, json={"converted": True})
+        )
+        conv = await convert_stack_to_git(
+            name="app",
+            ctx=mock_ctx,
+            environment_id=1,
+            url="https://github.com/org/repo.git",
+            repo_name="my-repo",
+            credential_id=7,
+            context_dir="sub",
+            secret_provider_id=3,
+            env_vars=[{"key": "FOO", "value": "bar"}],
+        )
+        assert conv["converted"] is True
+        body = json.loads(attach_route.calls.last.request.content)
+        assert body["repoName"] == "my-repo"
+        assert body["credentialId"] == 7
+        assert body["contextDir"] == "sub"
+        assert body["secretProviderId"] == 3
+        assert body["envVars"] == [{"key": "FOO", "value": "bar"}]

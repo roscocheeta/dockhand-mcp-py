@@ -99,3 +99,17 @@ async def test_passkeys(mock_client):
         deleted = await delete_passkey(passkey_id=1, ctx=mock_ctx)
         assert del_route.called
         assert deleted["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_users_and_tokens_non_list_fallbacks(mock_client):
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        respx.get("http://dockhand.test/api/users").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        respx.get("http://dockhand.test/api/auth/tokens").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        assert await list_users(ctx=mock_ctx) == {"unexpected": True}
+        assert await list_tokens(ctx=mock_ctx) == {"unexpected": True}
