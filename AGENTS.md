@@ -69,7 +69,7 @@ Before submitting any Pull Request or committing changes, run the following veri
 
 | Step | Command | Standard |
 | :--- | :--- | :--- |
-| **Test Suite & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain >90% line coverage across all modules. |
+| **Test Suite & Coverage** | `uv run --no-sync pytest --cov=dockhand_mcp --cov-report=term-missing` | 100% pass rate; maintain **100% line coverage** across all modules (enforced via `fail_under = 100`). |
 | **Dependency Security Audit** | `uv export --locked --no-dev --no-hashes --no-emit-project -o req.txt && uv tool run pip-audit -r req.txt` | Zero known vulnerabilities (moderate+ severity). |
 | **Static Application Security (SAST)** | `uv tool run bandit -r dockhand_mcp -ll` | Zero medium or high severity security findings. |
 | **Build & Packaging Verification** | `uv build` | Successfully builds `.tar.gz` sdist and `.whl` wheel without hatchling errors. |
@@ -123,6 +123,7 @@ All code, tool implementations, and refactors must uphold these non-negotiable i
 
 ## 4. Testing Protocols & Hygiene
 
+- **Mandatory 100% Coverage on All Changes**: Every code change, bug fix, refactor, or enhancement **must** include new or revised unit/contract tests in `tests/` so that `dockhand_mcp` stays at **100% line coverage (0 missed statements)**, enforced automatically by `fail_under = 100` in `pyproject.toml` and CI. Do not suppress coverage with `# pragma: no cover` on reachable runtime logic (only `if __name__ == "__main__":` is excluded via `pyproject.toml`).
 - **Upstream Mocking**: Never rely on a live Dockhand instance during automated testing. All HTTP interactions must be mocked using `respx.mock` and `httpx.Response`.
 - **SSE Stream Testing**: Server-Sent Events endpoints (`/deploy-stream`, `/check-updates`) must be tested with `Content-Type: text/event-stream` and valid `data: {...}\n\n` payloads to verify `post_sse` and `_parse_sse_response`.
 - **Backward-Compatible Parameter Swapping**: When modifying tool parameter orders or adding optional defaults, maintain legacy positional argument compatibility using explicit type checks (`isinstance(first_arg, int)` or `_normalize_container_args`). **NEVER** use `*args` or `**kwargs` in FastMCP-registered tool signatures—FastMCP exposes variadic parameters as required schema fields (`args`), breaking MCP client calls.
