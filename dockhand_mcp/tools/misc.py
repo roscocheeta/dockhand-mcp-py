@@ -293,10 +293,10 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
     """Set the interface language preference on the server (locale code, or None to follow browser).
 
     Supported locales include:
-      - 'en' (English), 'de' (German), 'es' (Spanish), 'ru' (Russian),
+      - 'en' (English), 'de' (German), 'es-ES' / 'es' (Spanish), 'ru' (Russian),
       - 'uk' (Ukrainian), 'tr' (Turkish), 'pt-BR' (Portuguese - Brazil),
       - 'fr-FR' (French), 'fr-CA' (French - Canada), 'it' (Italian),
-      - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pl' (Polish),
+      - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pl' (Polish), 'bg' (Bulgarian),
       - 'ja' (Japanese), 'ko' (Korean), 'zh-CN' (Simplified Chinese), 'zh-TW' (Traditional Chinese).
 
     Args:

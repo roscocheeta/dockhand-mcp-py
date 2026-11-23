@@ -19,12 +19,34 @@ def mock_ctx(mock_client):
 async def test_list_vulnerabilities(mock_client, mock_ctx):
     from dockhand_mcp.tools.security import list_vulnerabilities
     with respx.mock:
-        route = respx.get("http://dockhand.test/api/security/vulnerabilities?env=1").mock(
-            return_value=Response(200, json=[{"id": "CVE-123"}])
-        )
+        route = respx.get(
+            "http://dockhand.test/api/vulnerabilities?env=1&limit=50&offset=0"
+        ).mock(return_value=Response(200, json={"findings": [{"id": "CVE-123"}], "total": 1}))
         result = await list_vulnerabilities(1, mock_ctx)
         assert route.called
-        assert result == [{"id": "CVE-123"}]
+        assert result == {"findings": [{"id": "CVE-123"}], "total": 1}
+
+        filtered_route = respx.get(
+            "http://dockhand.test/api/vulnerabilities?env=1&limit=10&offset=5&q=openssl&severity=high&image=nginx&container=web&stack=prod"
+        ).mock(return_value=Response(200, json={"findings": [], "total": 0}))
+        filtered = await list_vulnerabilities(
+            environment_id=1,
+            ctx=mock_ctx,
+            limit=10,
+            offset=5,
+            q=" openssl ",
+            severity="high",
+            image="nginx",
+            container="web",
+            stack="prod",
+        )
+        assert filtered_route.called
+        assert filtered == {"findings": [], "total": 0}
+
+    with pytest.raises(ValueError, match="Invalid 'limit'"):
+        await list_vulnerabilities(1, mock_ctx, limit=0)
+    with pytest.raises(ValueError, match="Invalid 'offset'"):
+        await list_vulnerabilities(1, mock_ctx, offset=-1)
 
 @pytest.mark.asyncio
 async def test_scan_image(mock_client):
@@ -59,11 +81,21 @@ async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
         list_image_scans,
     )
     with respx.mock:
-        count_route = respx.get("http://dockhand.test/api/security/vulnerabilities/count?env=1").mock(
-            return_value=Response(200, json={"critical": 1, "high": 3})
+        count_route = respx.get("http://dockhand.test/api/vulnerabilities/count?env=1").mock(
+            return_value=Response(200, json={"total": 4, "summary": {"critical": 1, "high": 3}})
         )
-        scan_all_route = respx.post("http://dockhand.test/api/security/vulnerabilities/scan?env=1").mock(
-            return_value=Response(200, json={"started": True})
+        grouped_route = respx.get("http://dockhand.test/api/vulnerabilities/count?groupBy=container&env=1").mock(
+            return_value=Response(
+                200,
+                json={"groupBy": "container", "groups": [{"id": "c1", "name": "web", "critical": 1, "total": 4}]},
+            )
+        )
+        scan_all_route = respx.post("http://dockhand.test/api/vulnerabilities/scan-all?env=1").mock(
+            return_value=Response(
+                200,
+                text='data: {"output": "scanned", "success": true}\n\n',
+                headers={"Content-Type": "text/event-stream"},
+            )
         )
         list_scans_route = respx.get("http://dockhand.test/api/images/img1/scans?env=1").mock(
             return_value=Response(200, json=[{"image": "nginx:latest", "status": "completed"}])
@@ -71,11 +103,19 @@ async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
 
         cnt = await get_vulnerability_count(1, mock_ctx)
         assert count_route.called
-        assert cnt["critical"] == 1
+        assert cnt["summary"]["critical"] == 1
+
+        grouped = await get_vulnerability_count(environment_id=1, ctx=mock_ctx, group_by="Container")
+        assert grouped_route.called
+        assert grouped["groupBy"] == "container"
+        assert grouped["groups"][0]["name"] == "web"
+
+        with pytest.raises(ValueError, match="Invalid group_by"):
+            await get_vulnerability_count(environment_id=1, ctx=mock_ctx, group_by="node")
 
         sa = await scan_all_vulnerabilities(1, mock_ctx)
         assert scan_all_route.called
-        assert sa["started"] is True
+        assert sa["success"] is True
 
         scans = await list_image_scans(1, "img1", mock_ctx)
         assert list_scans_route.called
@@ -90,10 +130,10 @@ async def test_security_positional_arg_swaps(mock_client, mock_ctx):
         respx.get("http://dockhand.test/api/environments").mock(
             return_value=Response(200, json=[{"id": 1, "name": "default", "isDefault": True}])
         )
-        respx.get("http://dockhand.test/api/security/vulnerabilities?env=1").mock(
-            return_value=Response(200, json={"items": []})
+        respx.get("http://dockhand.test/api/vulnerabilities?env=1&limit=50&offset=0").mock(
+            return_value=Response(200, json={"findings": [], "total": 0})
         )
-        assert await list_vulnerabilities(mock_ctx) == {"items": []}
+        assert await list_vulnerabilities(mock_ctx) == {"findings": [], "total": 0}
 
         respx.post("http://dockhand.test/api/images/scan?env=1").mock(
             return_value=Response(200, json={"jobId": "456"})
