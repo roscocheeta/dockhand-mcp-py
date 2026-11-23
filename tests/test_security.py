@@ -91,11 +91,7 @@ async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
             )
         )
         scan_all_route = respx.post("http://dockhand.test/api/vulnerabilities/scan-all?env=1").mock(
-            return_value=Response(
-                200,
-                text='data: {"output": "scanned", "success": true}\n\n',
-                headers={"Content-Type": "text/event-stream"},
-            )
+            return_value=Response(200, json={"jobId": "123"})
         )
         list_scans_route = respx.get("http://dockhand.test/api/images/img1/scans?env=1").mock(
             return_value=Response(200, json=[{"image": "nginx:latest", "status": "completed"}])
@@ -115,7 +111,7 @@ async def test_vulnerability_counts_and_scans(mock_client, mock_ctx):
 
         sa = await scan_all_vulnerabilities(1, mock_ctx)
         assert scan_all_route.called
-        assert sa["success"] is True
+        assert sa["jobId"] == "123"
 
         scans = await list_image_scans(1, "img1", mock_ctx)
         assert list_scans_route.called

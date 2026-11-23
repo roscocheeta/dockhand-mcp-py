@@ -293,7 +293,7 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
     """Set the interface language preference on the server (locale code, or None to follow browser).
 
     Supported locales include:
-      - 'en' (English), 'de' (German), 'es-ES' / 'es' (Spanish), 'ru' (Russian),
+      - 'en' (English), 'de' (German), 'es-ES' (Spanish), 'ru' (Russian),
       - 'uk' (Ukrainian), 'tr' (Turkish), 'pt-BR' (Portuguese - Brazil),
       - 'fr-FR' (French), 'fr-CA' (French - Canada), 'it' (Italian),
       - 'nl' (Dutch), 'nb-NO' (Norwegian Bokmål), 'pl' (Polish), 'bg' (Bulgarian),
@@ -301,7 +301,7 @@ async def set_language_preference(ctx: Context = None, language: str | None = No
 
     Args:
         ctx: FastMCP Context.
-        language: Locale code (e.g. 'es', 'ru', 'en', 'fr-FR') or None to follow browser.
+        language: Locale code (e.g. 'es-ES', 'ru', 'en', 'fr-FR') or None to follow browser.
     """
     if isinstance(ctx, str) or (ctx is not None and not hasattr(ctx, "request_context")):
         language, ctx = ctx, language
