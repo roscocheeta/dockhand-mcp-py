@@ -450,3 +450,31 @@ async def test_list_git_stacks_pagination(mock_client):
         assert res["total"] == 4
         assert res["hasMore"] is True
         assert [s["Name"] for s in res["items"]] == ["git-1", "git-2"]
+
+
+@pytest.mark.asyncio
+async def test_git_stacks_edge_branches(mock_client):
+    from dockhand_mcp.tools.git_stacks import list_git_stacks, _compact_sync_result
+
+    assert _compact_sync_result("raw") == "raw"  # type: ignore[arg-type]
+    comp = _compact_sync_result(
+        {"success": True, "commit": "abc", "deletionPlan": {"toDelete": ["old.yml"]}}
+    )
+    assert comp["toDelete"] == ["old.yml"]
+
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        respx.get("http://dockhand.test/api/git/stacks").mock(
+            side_effect=[
+                Response(200, json=[{"id": 1, "stackName": "prod-app", "syncStatus": "synced"}]),
+                Response(200, json={"unexpected": True}),
+            ]
+        )
+        # Positional (search, ctx) swap
+        res_pos = await list_git_stacks("prod-*", mock_ctx)  # type: ignore[arg-type]
+        assert len(res_pos) == 1
+        assert res_pos[0]["Name"] == "prod-app"
+
+        # Non-list API fallback
+        res_non_list = await list_git_stacks(ctx=mock_ctx)
+        assert res_non_list == {"unexpected": True}

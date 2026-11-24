@@ -84,3 +84,12 @@ async def test_dashboard_and_activity(mock_client, mock_ctx):
         act = await get_activity(limit=20, ctx=mock_ctx)
         assert act_route.called
         assert act[0]["container"] == "web"
+
+
+@pytest.mark.asyncio
+async def test_audit_log_non_list_fallback(mock_client, mock_ctx):
+    with respx.mock:
+        respx.get("http://dockhand.test/api/audit?limit=100&offset=0").mock(
+            return_value=Response(200, json={"unexpected": True})
+        )
+        assert await get_audit_log(ctx=mock_ctx) == {"unexpected": True}

@@ -142,3 +142,37 @@ async def test_list_volumes_search_and_pagination(mock_client):
         res_null = await list_volumes(environment_id=3, ctx=mock_ctx, limit=10, offset=0)
         assert res_null == {"items": [], "total": 0, "limit": 10, "offset": 0, "hasMore": False}
 
+
+@pytest.mark.asyncio
+async def test_volumes_legacy_positional_and_non_list_fallback(mock_client):
+    from dockhand_mcp.tools.volumes import (
+        list_volumes,
+        inspect_volume,
+        delete_volume,
+        get_volume,
+        create_volume,
+    )
+
+    mock_ctx = MockContext(mock_client)
+    with respx.mock:
+        respx.get("http://dockhand.test/api/volumes?env=1").mock(
+            return_value=Response(200, text="raw-volume-response", headers={"Content-Type": "text/plain"})
+        )
+        assert await list_volumes(environment_id=1, ctx=mock_ctx) == "raw-volume-response"
+
+        respx.get("http://dockhand.test/api/volumes/vol1?env=1").mock(
+            return_value=Response(200, json={"Name": "vol1"})
+        )
+        assert (await inspect_volume(1, "vol1", mock_ctx))["Name"] == "vol1"  # type: ignore[arg-type]
+        assert (await get_volume(1, "vol1", mock_ctx))["Name"] == "vol1"  # type: ignore[arg-type]
+
+        respx.post("http://dockhand.test/api/volumes?env=1").mock(
+            return_value=Response(200, json={"Name": "vol2"})
+        )
+        assert (await create_volume(1, "vol2", mock_ctx))["Name"] == "vol2"  # type: ignore[arg-type]
+
+        respx.delete("http://dockhand.test/api/volumes/vol1?env=1").mock(
+            return_value=Response(200, json={"deleted": True})
+        )
+        assert (await delete_volume(1, "vol1", mock_ctx))["deleted"] is True  # type: ignore[arg-type]
+

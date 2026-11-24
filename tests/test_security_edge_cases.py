@@ -310,7 +310,7 @@ class TestSecurityHardening:
         from dockhand_mcp.tools import register_all_tools
 
         mcp = FastMCP("test-schema")
-        register_all_tools(mcp, read_only=False)
+        register_all_tools(mcp, read_only=False, disabled_tools=frozenset())
         tools = mcp._tool_manager._tools
         assert len(tools) == 182
 

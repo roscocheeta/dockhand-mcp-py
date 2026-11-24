@@ -1,6 +1,6 @@
 [project]
 name = "dockhand-mcp-py"
-version = "0.8.1"
+version = "0.8.2"
 description = "Python MCP Server for Dockhand Docker Management API"
 readme = "README.md"
 license = {text = "MIT"}
@@ -53,3 +53,9 @@ packages = ["dockhand_mcp"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.report]
+fail_under = 100
+exclude_lines = [
+    "if __name__ == .__main__.:",
+]
